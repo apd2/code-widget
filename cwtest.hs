@@ -6,7 +6,7 @@ import CodeWidget
 --import Text.Parsec
 import Text.Parsec.Pos
 
-{--
+{-- Magic Block #1
   {}   Inside the braces is the 1st editable region, second is below. Ellipsis passed as text arg to regionCreate. 
 --}
 fnm = "cwtest.hs"
@@ -14,7 +14,7 @@ magicPos1 = newPos   fnm 10 4
 hlite1_start = newPos fnm 18 10
 hlite1_end = newPos   fnm 18 60
 
-{-- This magic block is used to test regionCreateFrom - ellipsis moves from root region to sub-region
+{-- MB#2 This magic block is used to test regionCreateFrom - ellipsis moves from root region to sub-region
   {...}  This text should highlight when hilite1 is pressed
 --}
 
@@ -68,12 +68,12 @@ main = do
   boxPackStart vbox bbox PackNatural 0
   b1 <- buttonNewWithLabel "hilite 1"
   b2 <- buttonNewWithLabel "unhilite 1"
-  b3 <- buttonNewWithLabel "GetText 0"
+  b3 <- buttonNewWithLabel "GetText root"
   b4 <- buttonNewWithLabel "hilite 2"
   b5 <- buttonNewWithLabel "unhilite 2"
   b6 <- buttonNewWithLabel "GetText 2"
-  b7 <- buttonNewWithLabel "MoveSelTxt2"
-  b8 <- buttonNewWithLabel "DumpRegions"
+  b7 <- buttonNewWithLabel "Move Selection"
+  b8 <- buttonNewWithLabel "Dump Regions"
   widgetShow b1
   widgetShow b2
   widgetShow b3
@@ -90,12 +90,12 @@ main = do
   containerAdd bbox b6
   containerAdd bbox b7
   containerAdd bbox b8
-  _ <- on b1 buttonActivated ((regionApplyTag c) rootRegion htag1 (hlite1_start, hlite1_end))
-  _ <- on b2 buttonActivated ((regionRemoveTag c) rootRegion htag1)
+  _ <- on b1 buttonActivated (regionApplyTag c rootRegion htag1 (hlite1_start, hlite1_end))
+  _ <- on b2 buttonActivated (regionRemoveTag c rootRegion htag1)
   _ <- on b3 buttonActivated (rgnText c rootRegion)
-  _ <- on b4 buttonActivated ((regionApplyTag c) rootRegion htag2 (hlite2_start, hlite2_end))
-  _ <- on b5 buttonActivated ((regionRemoveTag c) rootRegion htag2)
-  _ <- on b8 buttonActivated (dumpRegions c)
+  _ <- on b4 buttonActivated (regionApplyTag c rootRegion htag2 (hlite2_start, hlite2_end))
+  _ <- on b5 buttonActivated (regionRemoveTag c rootRegion htag2)
+  _ <- on b8 buttonActivated (dumpRs c)
 
   win `containerAdd` vbox
 
@@ -104,18 +104,18 @@ main = do
   widgetShowAll win
   
   -- create two regions corresponding 
-  putStrLn "creating mb1 region"
+  --putStrLn "creating mb1 region"
   mb1 <- regionCreateFrom c rootRegion magic1braced False
-  putStrLn $ "creating ed1 subregion from mb1: " ++ show mb1
+  --putStrLn $ "creating ed1 subregion from mb1: " ++ show mb1
   ed1 <- regionCreate c mb1 (newPos fnm 1 2) True "..."
-  putStrLn $ "created ed1 region " ++ (show ed1)
+  --putStrLn $ "created ed1 region " ++ (show ed1)
   mb2 <- regionCreateFrom c rootRegion magic2braced False
   ed2 <- regionCreateFrom c mb2 ((newPos fnm 1 2),(newPos fnm 1 5)) True 
   --putStrLn $ "create region  " ++ (show ed2)
   _ <- on b7 buttonActivated (moveIt c mb2)
   _ <- on b6 buttonActivated (rgnText c ed2)
 
-  putStrLn "calling mainGUI"
+  --putStrLn "calling mainGUI"
 
   mainGUI
 
@@ -127,15 +127,22 @@ moveIt c tr = do
           Just sx -> do let r = selRegion sx
                         let f = selFrom   sx
                         let t = selTo     sx
-                        putStrLn $ "moveIt: R: " ++ show r ++ " F:" ++ show f ++ " T:" ++ show t
-                        regionMoveText c r tr (f,t)
+                        txt <- regionGetBoundedText c r (f,t)
+                        regionDeleteText c r (f, t)
+                        --putStrLn $ "moveIt: R: " ++ show r ++ " F:" ++ show f ++ " T:" ++ show t
+                        regionInsertText c tr txt
                 
 
+dumpRs :: CwAPI -> IO ()
+dumpRs c = do putStrLn "Dump of All Regions"
+              dumpRegions c
 
 rgnText :: CwAPI -> CodeWidget.Region -> IO ()
 rgnText c r = do t <- regionGetText c r
-                 dialog <- messageDialogNew Nothing [DialogModal] MessageInfo ButtonsOk t
-                 _ <- onResponse dialog (\_ -> widgetDestroy dialog)
-                 windowPresent dialog
+                 putStrLn $ "getText Region=" ++ show r
+                 putStrLn t
+                 --dialog <- messageDialogNew Nothing [DialogModal] MessageInfo ButtonsOk t
+                 --_ <- onResponse dialog (\_ -> widgetDestroy dialog)
+                 --windowPresent dialog
                  
   

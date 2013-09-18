@@ -71,9 +71,6 @@ data CwSelection = CwSelection { selRegion :: Region
                                , selTo     :: SourcePos
                                }
 
-data CwSplit = RgnHead
-             | RgnTail
-
 -- Interface of the widget
 data CwAPI = CwAPI {
     regionCreate          :: Region                   -- non-editable parent region
@@ -88,21 +85,18 @@ data CwAPI = CwAPI {
                           -> Bool                     -- editable?
                           -> IO Region,               -- result: Created region
 
-    regionSplit           :: Region                   -- region to split
-                          -> SourcePos                -- at this position
-                          -> Bool                     -- editable?
-                          -> CwSplit                  -- keep head or tail as current region
-                          -> IO Region,               -- result: created region
-
     regionDelete          :: Region -> IO (),         -- delete specified region. NOTE: cannot delete rootRegion
 
     regionGetText         :: Region -> IO String,     
-    
+
     regionSetText         :: Region -> String -> IO (),
 
-    regionMoveText        :: Region                   -- target region
-                          -> Region                   -- insert just before this region
-                          -> (SourcePos, SourcePos)   -- specified text to move
+    regionGetBoundedText  :: Region -> (SourcePos, SourcePos) -> IO String,
+    
+    regionDeleteText      :: Region -> (SourcePos, SourcePos) -> IO (),
+
+    regionInsertText      :: Region                   -- target region
+                          -> String
                           -> IO (),
                       
     getAllText            :: IO String,
@@ -206,21 +200,22 @@ codeWidgetNew l f w h = do
                                                      Just s  -> s
                                }
 
-    return $ Code { api = CwAPI { regionCreate          = codeRegionCreate    ref
+    return $ Code { api = CwAPI { regionCreate          = codeRegionCreate     ref
                                 , regionCreateFrom      = codeRegionCreateFrom ref
-                                , regionSplit           = codeRegionSplit     ref
-                                , regionDelete          = codeRegionDelete    ref
-                                , regionGetText         = codeRegionGetText   ref
-                                , regionSetText         = codeRegionSetText   ref
-                                , regionMoveText        = codeRegionMoveText  ref
-                                , getAllText            = codeGetAllText      ref
-                                , tagNew                = codeTagNew          ref
-                                , regionApplyTag        = codeRegionApplyTag  ref
-                                , regionRemoveTag       = codeRegionRemoveTag ref
-                                , regionSetMark         = codeRegionSetMark   ref
-                                , regionGetIter         = codeRegionGetIter   ref
+                                , regionDelete          = codeRegionDelete     ref
+                                , regionGetText         = codeRegionGetText    ref
+                                , regionGetBoundedText  = codeRegionGetBoundedText   ref
+                                , regionSetText         = codeRegionSetText    ref
+                                , regionDeleteText      = codeRegionDeleteText ref
+                                , regionInsertText      = codeRegionInsertText ref
+                                , getAllText            = codeGetAllText       ref
+                                , tagNew                = codeTagNew           ref
+                                , regionApplyTag        = codeRegionApplyTag   ref
+                                , regionRemoveTag       = codeRegionRemoveTag  ref
+                                , regionSetMark         = codeRegionSetMark    ref
+                                , regionGetIter         = codeRegionGetIter    ref
                                 , regionGetSelection    = codeRegionGetSelection ref
-                                , dumpRegions           = codeDumpRegions     ref
+                                , dumpRegions           = codeDumpRegions      ref
                                 }
                   , view = v
                   }
@@ -244,21 +239,6 @@ codeRegionCreateFrom ref parent (from, to) ed = do
           Just rc -> cvRgnCreateFrom ref rc from to ed False
                       
 
-codeRegionSplit :: RCodeView -> Region -> SourcePos -> Bool -> CwSplit -> IO Region
-codeRegionSplit ref parent pos ed spl = do
-    cv <- readIORef ref
-    case cvGetRegion cv parent of
-          Nothing -> error ("regionSplit: cannot find region to split" ++ (show parent))
-          Just rc  -> do case spl of 
-                              RgnHead -> do rto <- cvRgnEndPos cv rc
-                                            r <- cvRgnCreateFrom ref rc pos rto ed True
-                                            cvSetEditFlags cv 
-                                            return r
-                              RgnTail -> do rfm <- cvRgnStartPos cv rc
-                                            r <- cvRgnCreateFrom ref rc rfm pos ed True
-                                            cvSetEditFlags cv 
-                                            return r
-                      
 codeRegionDelete :: RCodeView -> Region -> IO ()
 codeRegionDelete ref r = do
     cv <- readIORef ref
@@ -281,6 +261,19 @@ codeRegionGetText ref r = do
             Just x  -> cvSubRgnText cv x
 
 
+codeRegionGetBoundedText :: RCodeView -> Region -> (SourcePos, SourcePos) -> IO String
+codeRegionGetBoundedText ref r (from, to) = do
+    cv <- readIORef ref
+    case cvGetRegion cv r of 
+            Nothing -> error ("regionGetText: region not found: " ++ (show r))
+            Just x  -> do s <- cvRgnMapPos cv x from
+                          e <- cvRgnMapPos cv x to
+                          si <- rootIterFromPos cv s
+                          ei <- rootIterFromPos cv e
+                          cvRgnGetText cv si ei False
+
+
+
 codeRegionSetText :: RCodeView -> Region -> String -> IO ()
 codeRegionSetText ref r txt = do
     cv <- readIORef ref
@@ -295,28 +288,27 @@ codeRegionSetText ref r txt = do
                                   G.textBufferInsert (cvBuffer cv) iter1 txt
     cvSetEditFlags cv 
 
-codeRegionMoveText :: RCodeView -> Region -> Region -> (SourcePos,SourcePos) -> IO ()
-codeRegionMoveText ref r rb (fm,to) = do
+codeRegionInsertText :: RCodeView -> Region -> String -> IO ()
+codeRegionInsertText ref r t = do
     cv <- readIORef ref  
     case cvGetRegion cv r of 
-            Nothing -> error ("regionMoveText: region not found: " ++ (show r))
-            Just x  -> do case cvGetRegion cv rb of
-                              Nothing -> error ("regionMoveText: region not found: " ++ (show rb))
-                              Just bef -> do mpStrLn $ "moveText: F:" ++ show fm ++ " T:" ++ show to
-                                             di  <- cvInsertMark ref bef
-                                             s   <- cvRgnMapPos cv x fm
-                                             e   <- cvRgnMapPos cv x to
-                                             mpStrLn $ "moveText: AF:" ++ show s ++ " AT:" ++ show e
-                                             i1  <- rootIterFromPos cv s
-                                             i2  <- rootIterFromPos cv e
-                                             txt <- cvRgnGetText cv i1 i2 False
-                                             mpStrLn $ "moveText deleting from old region"
-                                             _   <- G.textBufferDelete (cvBuffer cv) i1 i2
-                                             mpStrLn $ "moveText:" ++ " inserting text " ++ txt
-                                             i3  <- G.textBufferGetIterAtMark (cvBuffer cv) di
-                                             cvRgnInsertText cv i3  txt
-                                             cvSetEditFlags cv 
+            Nothing -> error ("regionInsertText: region not found: " ++ (show r))
+            Just x  -> do di  <- cvInsertMark ref x
+                          i3  <- G.textBufferGetIterAtMark (cvBuffer cv) di
+                          cvRgnInsertText cv i3 t
+                          cvSetEditFlags cv 
 
+codeRegionDeleteText :: RCodeView -> Region -> (SourcePos, SourcePos) -> IO ()
+codeRegionDeleteText ref r (from, to) = do
+    cv <- readIORef ref  
+    case cvGetRegion cv r of 
+            Nothing -> error ("regionDeleteText: region not found: " ++ (show r))
+            Just x  -> do mpStrLn $ "deleteText: F:" ++ show from ++ " T:" ++ show to
+                          s <- cvRgnMapPos cv x from
+                          e <- cvRgnMapPos cv x to
+                          si <- rootIterFromPos cv s
+                          ei <- rootIterFromPos cv e
+                          G.textBufferDelete (cvBuffer cv) si ei
     
 codeGetAllText :: RCodeView -> IO String
 codeGetAllText ref = do
