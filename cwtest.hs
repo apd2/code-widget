@@ -7,23 +7,27 @@ import CodeWidget
 import Text.Parsec.Pos
 
 {--
-12{}24 Inside the braces is the 1st editable region, second is below. Set text used to insert ellipsis during runtime. 
+  {}   Inside the braces is the 1st editable region, second is below. Ellipsis passed as text arg to regionCreate. 
 --}
+fnm = "cwtest.hs"
+magicPos1 = newPos   fnm 10 4
+hlite1_start = newPos fnm 18 10
+hlite1_end = newPos   fnm 18 60
 
-magicPos1 = newPos   "cwtest.hs" 10 4
-hlite1_start = newPos "cwtest.hs" 18 7
-hlite1_end = newPos   "cwtest.hs" 18 57
-
-{--
-12{}34This text should highlight when hilite1 is pressed
+{-- This magic block is used to test regionCreateFrom - ellipsis moves from root region to sub-region
+  {...}  This text should highlight when hilite1 is pressed
 --}
 
   -- This text should highlight when hilite2 is pressed ... out to here
-magicPos2 = newPos "cwtest.hs" 18 4
-hlite2_start = newPos "cwtest.hs" 21 3
-hlite2_end = newPos "cwtest.hs" 21 72
+magicPos2 = ((newPos fnm 18 4), (newPos fnm 18 7))
+hlite2_start = newPos fnm 21 3
+hlite2_end = newPos fnm 21 72
+
+magic1braced = ((newPos fnm 10 3),(newPos fnm 10 5))
+magic2braced = ((newPos fnm 18 3),(newPos fnm 18 8))
 
 colorCont = "#80c080"
+insText = "this text is inserted"
 
 main = do
   _ <- initGUI
@@ -33,10 +37,10 @@ main = do
 
 
   -- load up and display a file
-  fileContents <- readFile "cwtest.hs"
+  fileContents <- readFile fnm
 
   -- create a new CodeWidget
-  cd <- codeWidgetNew "haskell" (Just "cwtest.hs") 600 600 
+  cd <- codeWidgetNew "haskell" (Just fnm) 800 800 
   let c = api cd
   let sv = view cd
 
@@ -68,24 +72,30 @@ main = do
   b4 <- buttonNewWithLabel "hilite 2"
   b5 <- buttonNewWithLabel "unhilite 2"
   b6 <- buttonNewWithLabel "GetText 2"
+  b7 <- buttonNewWithLabel "MoveSelTxtBefore2"
+  b8 <- buttonNewWithLabel "DumpRegions"
   widgetShow b1
   widgetShow b2
   widgetShow b3
   widgetShow b4
   widgetShow b5
   widgetShow b6
+  widgetShow b7
+  widgetShow b8
   containerAdd bbox b1
   containerAdd bbox b2
   containerAdd bbox b3
   containerAdd bbox b4
   containerAdd bbox b5
   containerAdd bbox b6
+  containerAdd bbox b7
+  containerAdd bbox b8
   _ <- on b1 buttonActivated ((regionApplyTag c) rootRegion htag1 (hlite1_start, hlite1_end))
   _ <- on b2 buttonActivated ((regionRemoveTag c) rootRegion htag1)
+  _ <- on b3 buttonActivated (rgnText c rootRegion)
   _ <- on b4 buttonActivated ((regionApplyTag c) rootRegion htag2 (hlite2_start, hlite2_end))
   _ <- on b5 buttonActivated ((regionRemoveTag c) rootRegion htag2)
-  _ <- on b3 buttonActivated (do s <- (regionGetText c) rootRegion
-                                 putStrLn s)
+  _ <- on b8 buttonActivated (dumpRegions c)
 
   win `containerAdd` vbox
 
@@ -94,14 +104,38 @@ main = do
   widgetShowAll win
   
   -- create two regions corresponding 
-  ed1 <- regionCreate c rootRegion magicPos1 True "..."
-  putStrLn $ "created region " ++ (show ed1)
-  ed2 <- regionCreate c rootRegion magicPos2 True "..."
-  putStrLn $ "create region  " ++ (show ed2)
-  _ <- on b6 buttonActivated (do s <- (regionGetText c) ed2
-                                 putStrLn s)
+  putStrLn "creating mb1 region"
+  mb1 <- regionCreateFrom c rootRegion magic1braced False
+  putStrLn $ "creating ed1 subregion from mb1: " ++ show mb1
+  ed1 <- regionCreate c mb1 (newPos fnm 1 2) True "..."
+  putStrLn $ "created ed1 region " ++ (show ed1)
+  mb2 <- regionCreateFrom c rootRegion magic2braced False
+  ed2 <- regionCreateFrom c mb2 ((newPos fnm 1 2),(newPos fnm 1 5)) True 
+  --putStrLn $ "create region  " ++ (show ed2)
+  _ <- on b7 buttonActivated (moveIt c mb2)
+  _ <- on b6 buttonActivated (rgnText c ed2)
 
   putStrLn "calling mainGUI"
 
   mainGUI
 
+moveIt :: CwAPI -> CodeWidget.Region -> IO ()
+moveIt c tr = do
+    sel <- regionGetSelection c 
+    case sel of 
+          Nothing -> return ()
+          Just sx -> do let r = selRegion sx
+                        let f = selFrom   sx
+                        let t = selTo     sx
+                        putStrLn $ "moveIt: R: " ++ show r ++ " F:" ++ show f ++ " T:" ++ show t
+                        regionMoveTextBefore c r tr (f,t)
+                
+
+
+rgnText :: CwAPI -> CodeWidget.Region -> IO ()
+rgnText c r = do t <- regionGetText c r
+                 dialog <- messageDialogNew Nothing [DialogModal] MessageInfo ButtonsOk t
+                 _ <- onResponse dialog (\_ -> widgetDestroy dialog)
+                 windowPresent dialog
+                 
+  
