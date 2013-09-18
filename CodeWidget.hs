@@ -100,7 +100,7 @@ data CwAPI = CwAPI {
     
     regionSetText         :: Region -> String -> IO (),
 
-    regionMoveTextBefore  :: Region                   -- target region
+    regionMoveText        :: Region                   -- target region
                           -> Region                   -- insert just before this region
                           -> (SourcePos, SourcePos)   -- specified text to move
                           -> IO (),
@@ -212,7 +212,7 @@ codeWidgetNew l f w h = do
                                 , regionDelete          = codeRegionDelete    ref
                                 , regionGetText         = codeRegionGetText   ref
                                 , regionSetText         = codeRegionSetText   ref
-                                , regionMoveTextBefore  = codeRegionMoveTextBefore ref
+                                , regionMoveText        = codeRegionMoveText  ref
                                 , getAllText            = codeGetAllText      ref
                                 , tagNew                = codeTagNew          ref
                                 , regionApplyTag        = codeRegionApplyTag  ref
@@ -295,33 +295,26 @@ codeRegionSetText ref r txt = do
                                   G.textBufferInsert (cvBuffer cv) iter1 txt
     cvSetEditFlags cv 
 
-codeRegionMoveTextBefore :: RCodeView -> Region -> Region -> (SourcePos,SourcePos) -> IO ()
-codeRegionMoveTextBefore ref r rb (fm,to) = do
+codeRegionMoveText :: RCodeView -> Region -> Region -> (SourcePos,SourcePos) -> IO ()
+codeRegionMoveText ref r rb (fm,to) = do
     cv <- readIORef ref  
     case cvGetRegion cv r of 
-            Nothing -> error ("regionMoveTextBefore: region not found: " ++ (show r))
+            Nothing -> error ("regionMoveText: region not found: " ++ (show r))
             Just x  -> do case cvGetRegion cv rb of
-                              Nothing -> error ("regionMoveTextBefore: region not found: " ++ (show rb))
-                              Just bef -> do mpStrLn $ "moveTextBefore: F:" ++ show fm ++ " T:" ++ show to
+                              Nothing -> error ("regionMoveText: region not found: " ++ (show rb))
+                              Just bef -> do mpStrLn $ "moveText: F:" ++ show fm ++ " T:" ++ show to
                                              di  <- cvInsertMark ref bef
                                              s   <- cvRgnMapPos cv x fm
                                              e   <- cvRgnMapPos cv x to
-                                             mpStrLn $ "moveTextBefore: AF:" ++ show s ++ " AT:" ++ show e
+                                             mpStrLn $ "moveText: AF:" ++ show s ++ " AT:" ++ show e
                                              i1  <- rootIterFromPos cv s
                                              i2  <- rootIterFromPos cv e
                                              txt <- cvRgnGetText cv i1 i2 False
-                                             mpStrLn $ "moveTextBefore deleting from old region"
+                                             mpStrLn $ "moveText deleting from old region"
                                              _   <- G.textBufferDelete (cvBuffer cv) i1 i2
-                                             --i3  <- rootIterFromPos cv d1
-                                             --_   <- G.textIterBackwardChar i3
-                                             mpStrLn $ "moveTextBefore:" ++ " inserting text " ++ txt
+                                             mpStrLn $ "moveText:" ++ " inserting text " ++ txt
                                              i3  <- G.textBufferGetIterAtMark (cvBuffer cv) di
                                              cvRgnInsertText cv i3  txt
-                                             --d2  <- cvRgnStartPos cv bef
-                                             --let dl = (sourceLine d2) - (sourceLine d1)
-                                             --let dc = (sourceColumn d2) - (sourceColumn d1)
-                                             --let rgns = map (adjustRgnStart cv d1 dl dc) (cvRegions cv)
-                                             --writeIORef ref cv { cvRegions = rgns}
                                              cvSetEditFlags cv 
 
     
@@ -405,7 +398,7 @@ codeDumpRegions :: RCodeView -> IO ()
 codeDumpRegions ref = do
     cv <- readIORef ref
     mapM_ (\r -> do t <- dumpRgn cv r
-                    mpStrLn t) (cvRegions cv)
+                    putStrLn t) (cvRegions cv)
 
 -- Helper functions
 
@@ -523,9 +516,9 @@ cvRgnCreateFrom ref rc from to ed sib =  do
 cvOtherRegions :: CodeView -> Region -> [RegionContext]
 cvOtherRegions cv r = filter (\x -> r /= (rcRegion x)) $ cvRegions cv
 
+-- get a list if all subregions of this region
 cvChildRegions :: CodeView -> RegionContext -> [RegionContext]
-cvChildRegions cv r = filter (\x -> myRn == (rcParent x)) $ cvRegions cv
-                      where myRn = rcRegion r
+cvChildRegions cv r = filter (\x -> rcRegion r == (rcParent x)) $ cvRegions cv
 
 -- get the specified region, maybe
 cvGetRegion :: CodeView -> Region -> Maybe RegionContext
@@ -535,6 +528,7 @@ cvGetRegion cv r =
             [] -> Nothing
             _  -> Just $ head rgs
 
+-- handle GTK "editable" marking for all regions
 cvSetEditFlags :: CodeView -> IO ()
 cvSetEditFlags cv = do
     case cvGetRegion cv rootRegion of
@@ -542,9 +536,12 @@ cvSetEditFlags cv = do
          Just r  -> cvRgnStatic cv r
     mapM_ (cvRgnEditable cv) (cvEditableRgns cv)
 
+-- return a list of all editable regions
 cvEditableRgns :: CodeView -> [RegionContext]
 cvEditableRgns cv = filter rcEditable (cvRegions cv)
 
+
+-- setup GTK goodies to make a region static
 cvRgnStatic :: CodeView -> RegionContext -> IO ()
 cvRgnStatic cv rc = do
     si <- cvRgnStart cv rc
@@ -554,6 +551,7 @@ cvRgnStatic cv rc = do
     G.textBufferRemoveTag buf tag si ei
     G.textBufferApplyTag buf tag si ei 
 
+-- setup GTK goodies to make a region editable 
 cvRgnEditable :: CodeView -> RegionContext -> IO ()
 cvRgnEditable cv rc = do
     si <- cvRgnStart cv rc
@@ -576,13 +574,15 @@ posFromIter cv iter = do
     l <- G.textIterGetLine iter
     c <- G.textIterGetLineOffset iter
     return $ newPos (cvFileName cv) (l + 1)  (c + 1)
-    
+
+-- check if a given root-relative position is contained in the specified sub-region
 cvRgnPosInside :: CodeView -> RegionContext -> SourcePos -> IO Bool
 cvRgnPosInside cv rc pos = do
     sp <- cvRgnStartPos cv rc
     ep <- cvRgnEndPos cv rc
     return $ if' (sp <= pos && ep >= pos) True False
 
+-- convert a root-relative position to a subregion-relative position
 cvMapPosToRgn :: CodeView -> RegionContext -> SourcePos -> IO SourcePos
 cvMapPosToRgn cv rc pos = do
     sp <- cvRgnStartPos cv rc
@@ -686,6 +686,7 @@ newRightMark = do mk <- G.textMarkNew Nothing False
                   G.textMarkSetVisible mk False
                   return mk
 
+-- If region does not yet have an Insertion mark, create one and add it. Otherwise, return the existing one
 cvInsertMark :: RCodeView -> RegionContext -> IO G.TextMark
 cvInsertMark ref rc = do cv <- readIORef ref
                          case (rcInsert rc) of 
@@ -724,6 +725,7 @@ mkRootRegion bf = do smk <- newLeftMark
                                              }
                      return r
 
+-- get contents of entire text buffer
 cvGetAllText :: CodeView -> IO String
 cvGetAllText cv = do
     case cvGetRegion cv rootRegion of 
@@ -790,22 +792,18 @@ cvSubRgnText cv rc = do
                               s3 <- cvRgnGetText cv es3 ee3 False
                               return $ s1 ++ s2 ++ s3
 
+-- loop through all regions to find the one that pos belongs to
 cvWhoHoldsPos :: CodeView -> SourcePos -> IO (Maybe RegionContext)
 cvWhoHoldsPos cv pos = do cvWhoHoldsPos' cv pos (cvEditableRgns cv)
 cvWhoHoldsPos' :: CodeView -> SourcePos -> [RegionContext] -> IO (Maybe RegionContext)
 cvWhoHoldsPos' _ _ []  = do return Nothing
 cvWhoHoldsPos' cv pos (x:xs) = do
-      rtxt <- dumpRgn cv x
-      mpStrLn $ "cvWhoHoldsPos': " ++ rtxt
+      --rtxt <- dumpRgn cv x
+      --mpStrLn $ "cvWhoHoldsPos': " ++ rtxt
       ins <- cvRgnPosInside cv x pos
       if' (ins == True) (return $ Just x) (cvWhoHoldsPos' cv pos xs) 
 
-adjustRgnStart :: CodeView -> SourcePos -> Int -> Int -> RegionContext -> RegionContext
-adjustRgnStart cv pos l c rc = 
-      if (pos > (rcStartPos rc))
-          then rc
-          else rc {rcStartPos = newPos (cvFileName cv) ((sourceLine (rcStartPos rc)) + l) ((sourceColumn (rcStartPos rc)) + c)}
-
+-- debugging: display current state of a region
 dumpRgn :: CodeView -> RegionContext -> IO String
 dumpRgn cv rgn = do
       let rs = "#:" ++ show (rcRegion rgn) ++ " "

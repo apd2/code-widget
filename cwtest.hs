@@ -72,7 +72,7 @@ main = do
   b4 <- buttonNewWithLabel "hilite 2"
   b5 <- buttonNewWithLabel "unhilite 2"
   b6 <- buttonNewWithLabel "GetText 2"
-  b7 <- buttonNewWithLabel "MoveSelTxtBefore2"
+  b7 <- buttonNewWithLabel "MoveSelTxt2"
   b8 <- buttonNewWithLabel "DumpRegions"
   widgetShow b1
   widgetShow b2
@@ -128,7 +128,7 @@ moveIt c tr = do
                         let f = selFrom   sx
                         let t = selTo     sx
                         putStrLn $ "moveIt: R: " ++ show r ++ " F:" ++ show f ++ " T:" ++ show t
-                        regionMoveTextBefore c r tr (f,t)
+                        regionMoveText c r tr (f,t)
                 
 
 
