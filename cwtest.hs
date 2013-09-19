@@ -95,7 +95,8 @@ main = do
   _ <- on b3 buttonActivated (rgnText c rootRegion)
   _ <- on b4 buttonActivated (regionApplyTag c rootRegion htag2 (hlite2_start, hlite2_end))
   _ <- on b5 buttonActivated (regionRemoveTag c rootRegion htag2)
-  _ <- on b8 buttonActivated (dumpRs c)
+  --_ <- on b8 buttonActivated (dumpRs c)
+  _ <- on b8 buttonActivated (regionScrollToPos c rootRegion hlite2_start)
 
   win `containerAdd` vbox
 

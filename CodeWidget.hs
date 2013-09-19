@@ -107,6 +107,7 @@ data CwAPI = CwAPI {
     regionSetMark         :: Region -> G.TextMark -> SourcePos -> IO (),
     regionGetIter         :: Region -> SourcePos -> IO G.TextIter,
     regionGetSelection    :: IO (Maybe CwSelection),
+    regionScrollToPos     :: Region -> SourcePos -> IO (),
     dumpRegions           :: IO ()
 }
 
@@ -200,6 +201,19 @@ codeWidgetNew l f w h = do
                                                      Just s  -> s
                                }
 
+    -- setup signal handlers
+    -- buf signals
+    G.on    buf G.deleteRange      (bufSigDeleteRange ref)
+    G.after buf G.bufferInsertText (bufSigInsertText ref)
+    -- view signals
+    G.on    v   G.backspace        (viewSigBackspace ref)
+    G.on    v   G.cutClipboard     (viewSigCutClipB  ref)
+    G.on    v   G.deleteFromCursor (viewSigDelFmCursor ref)
+    G.on    v   G.insertAtCursor   (viewSigInsAtCursor ref)
+    G.on    v   G.pasteClipboard   (viewSigPasteClibB  ref)
+    G.on    v   G.textViewPreeditChanged (viewSigPreEdChg ref)
+
+
     return $ Code { api = CwAPI { regionCreate          = codeRegionCreate     ref
                                 , regionCreateFrom      = codeRegionCreateFrom ref
                                 , regionDelete          = codeRegionDelete     ref
@@ -215,10 +229,54 @@ codeWidgetNew l f w h = do
                                 , regionSetMark         = codeRegionSetMark    ref
                                 , regionGetIter         = codeRegionGetIter    ref
                                 , regionGetSelection    = codeRegionGetSelection ref
+                                , regionScrollToPos     = codeRegionScrollToPos ref
                                 , dumpRegions           = codeDumpRegions      ref
                                 }
                   , view = v
                   }
+
+-- Individual Signal Handlers
+bufSigDeleteRange :: RCodeView -> G.TextIter -> G.TextIter -> IO ()
+bufSigDeleteRange ref ifm ito = do cv <- readIORef ref
+                                   pfm <- posFromIter cv ifm
+                                   pto <- posFromIter cv ito
+                                   putStrLn $ "bufSigDeleteRange: FROM:" ++ show pfm ++ " TO:" ++ show pto
+
+bufSigInsertText :: RCodeView -> G.TextIter -> String -> IO ()
+bufSigInsertText ref iter txt = do cv <- readIORef ref
+                                   pos <- posFromIter cv iter
+                                   putStrLn $ "bufSigInsertText:" ++ show pos ++ " TEXT:" ++ txt
+                                   
+
+viewSigBackspace :: RCodeView -> IO ()
+viewSigBackspace ref = do cv <- readIORef ref
+                          pos <- cvCursorPos cv
+                          putStrLn $ "viewSigBackSpace:" ++ show pos
+
+viewSigCutClipB :: RCodeView -> IO ()
+viewSigCutClipB ref = do cv <- readIORef ref
+                         pos <- cvCursorPos cv
+                         putStrLn $ "viewSigCutClipB:" ++ show pos
+
+viewSigDelFmCursor :: RCodeView -> G.DeleteType -> Int -> IO ()
+viewSigDelFmCursor ref dt n = do cv <- readIORef ref
+                                 pos <- cvCursorPos cv
+                                 putStrLn $ "viewSigDelFromCursor:" ++ show pos ++ " " ++ show dt ++ " " ++ show n
+
+viewSigInsAtCursor :: RCodeView -> String -> IO ()
+viewSigInsAtCursor ref txt = do cv <- readIORef ref
+                                pos <- cvCursorPos cv
+                                putStrLn $ "viewSigInsAtCursor:" ++ show pos ++ " TEXT:" ++ txt
+
+viewSigPasteClibB :: RCodeView -> IO ()
+viewSigPasteClibB ref = do cv <- readIORef ref
+                           pos <- cvCursorPos cv
+                           putStrLn $ "viewSigPasteClibB:" ++ show pos
+
+viewSigPreEdChg :: RCodeView -> String -> IO ()
+viewSigPreEdChg ref txt = do cv <- readIORef ref
+                             pos <- cvCursorPos cv
+                             putStrLn $ "viewSigPreEdChg:" ++ show pos ++ " TEXT:" ++ txt
 
 -- Individual API functions
 
@@ -384,6 +442,26 @@ codeRegionGetSelection ref = do
                                           return $ Just (CwSelection (rcRegion rc) sp ep)
                       
                    
+
+codeRegionScrollToPos :: RCodeView -> Region -> SourcePos -> IO ()
+codeRegionScrollToPos ref r pos = do
+    cv <- readIORef ref
+    case cvGetRegion cv r of
+            Nothing -> error ("regionScrollToPos: region not found: " ++ (show r))
+            Just x  -> do rpos <- cvRgnMapPos cv x pos
+                          apos <- cvAllowForPriorSubs cv x rpos
+                          rect  <- G.textViewGetVisibleRect (cvView cv)
+                          let (G.Rectangle rx ry rw rh) = rect
+                          (t1, _) <- G.textViewGetLineAtY (cvView cv) ry
+                          (t2, _) <- G.textViewGetLineAtY (cvView cv) (ry + rh - 1)
+                          l1 <- G.textIterGetLine t1
+                          l2 <- G.textIterGetLine t2
+                          let lt = sourceLine apos
+                          if (((l1 + 1) > lt) || ((l2 - 1) < lt))
+                              then do t3 <- rootIterFromPos cv apos
+                                      G.textViewScrollToIter (cvView cv) t3 0.4 Nothing
+                                      return ()
+                              else do return ()
 
 
 codeDumpRegions :: RCodeView -> IO ()
@@ -795,6 +873,14 @@ cvWhoHoldsPos' cv pos (x:xs) = do
       ins <- cvRgnPosInside cv x pos
       if' (ins == True) (return $ Just x) (cvWhoHoldsPos' cv pos xs) 
 
+cvCursorPos :: CodeView -> IO SourcePos
+cvCursorPos cv = do
+    mk   <- G.textBufferGetInsert (cvBuffer cv)
+    iter <- G.textBufferGetIterAtMark (cvBuffer cv) mk
+    ln   <- G.textIterGetLine iter
+    offs <- G.textIterGetLineOffset iter
+    return $ newPos (cvFileName cv) (ln + 1) (offs + 1)
+    
 -- debugging: display current state of a region
 dumpRgn :: CodeView -> RegionContext -> IO String
 dumpRgn cv rgn = do
