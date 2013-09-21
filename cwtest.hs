@@ -36,20 +36,17 @@ main = do
   _ <- win `onDestroy` mainQuit
 
 
-  -- load up and display a file
-  fileContents <- readFile fnm
-
   -- create a new CodeWidget
-  cd <- codeWidgetNew "haskell" (Just fnm) 800 800 
-  let c = api cd
-  let sv = view cd
+  cd <- codeWidgetNew "haskell"  800 800 
+  let c =  codeApi cd
+  let sv = codeWidget cd
 
-  regionSetText c rootRegion fileContents
+  rr <- pageCreate c fnm
 
   --get some tags to highlite it with
-  htag1 <- tagNew c 
+  htag1 <- tagNew c rr
   set htag1 [textTagBackground := colorCont]
-  htag2 <- tagNew c
+  htag2 <- tagNew c rr
   set htag2 [textTagBackground := colorCont]
 
   -- put CodeWidget in a scrolled window
@@ -90,13 +87,13 @@ main = do
   containerAdd bbox b6
   containerAdd bbox b7
   containerAdd bbox b8
-  _ <- on b1 buttonActivated (regionApplyTag c rootRegion htag1 (hlite1_start, hlite1_end))
-  _ <- on b2 buttonActivated (regionRemoveTag c rootRegion htag1)
-  _ <- on b3 buttonActivated (rgnText c rootRegion)
-  _ <- on b4 buttonActivated (regionApplyTag c rootRegion htag2 (hlite2_start, hlite2_end))
-  _ <- on b5 buttonActivated (regionRemoveTag c rootRegion htag2)
-  --_ <- on b8 buttonActivated (dumpRs c)
-  _ <- on b8 buttonActivated (regionScrollToPos c rootRegion hlite2_start)
+  _ <- on b1 buttonActivated (regionApplyTag c rr htag1 (hlite1_start, hlite1_end))
+  _ <- on b2 buttonActivated (regionRemoveTag c rr htag1)
+  _ <- on b3 buttonActivated (rgnText c rr)
+  _ <- on b4 buttonActivated (regionApplyTag c rr htag2 (hlite2_start, hlite2_end))
+  _ <- on b5 buttonActivated (regionRemoveTag c rr htag2)
+  _ <- on b8 buttonActivated (dumpRs c rr)
+  --_ <- on b8 buttonActivated (regionScrollToPos c rr hlite2_start)
 
   win `containerAdd` vbox
 
@@ -106,12 +103,12 @@ main = do
   
   -- create two regions corresponding 
   --putStrLn "creating mb1 region"
-  mb1 <- regionCreateFrom c rootRegion magic1braced False
+  mb1 <- regionCreateFrom c rr magic1braced False (chgreg 1)
   --putStrLn $ "creating ed1 subregion from mb1: " ++ show mb1
-  ed1 <- regionCreate c mb1 (newPos fnm 1 2) True "..."
+  ed1 <- regionCreate c mb1 (newPos fnm 1 2) True "..." (chgreg 2)
   --putStrLn $ "created ed1 region " ++ (show ed1)
-  mb2 <- regionCreateFrom c rootRegion magic2braced False
-  ed2 <- regionCreateFrom c mb2 ((newPos fnm 1 2),(newPos fnm 1 5)) True 
+  mb2 <- regionCreateFrom c rr magic2braced False (chgreg 3)
+  ed2 <- regionCreateFrom c mb2 ((newPos fnm 1 2),(newPos fnm 1 5)) True (chgreg 4)
   --putStrLn $ "create region  " ++ (show ed2)
   _ <- on b7 buttonActivated (moveIt c mb2)
   _ <- on b6 buttonActivated (rgnText c ed2)
@@ -120,9 +117,15 @@ main = do
 
   mainGUI
 
+boohoo :: IO ()
+boohoo = return ()
+
+chgreg :: Int -> IO ()
+chgreg id = do putStrLn $ "RegionChange: " ++ show id
+
 moveIt :: CwAPI -> CodeWidget.Region -> IO ()
 moveIt c tr = do
-    sel <- regionGetSelection c 
+    sel <- regionGetSelection c tr
     case sel of 
           Nothing -> return ()
           Just sx -> do let r = selRegion sx
@@ -134,9 +137,9 @@ moveIt c tr = do
                         regionInsertText c tr txt
                 
 
-dumpRs :: CwAPI -> IO ()
-dumpRs c = do putStrLn "Dump of All Regions"
-              dumpRegions c
+dumpRs :: CwAPI -> CodeWidget.Region -> IO ()
+dumpRs c r = do putStrLn "Dump of All Regions"
+                dumpRegions c r
 
 rgnText :: CwAPI -> CodeWidget.Region -> IO ()
 rgnText c r = do t <- regionGetText c r
