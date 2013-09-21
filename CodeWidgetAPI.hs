@@ -21,6 +21,12 @@ codePageCreate ref f = do
     
     txt <- readFile f
 
+    vbox <- G.vBoxNew False 0
+    G.widgetShow vbox
+    scroll <- G.scrolledWindowNew Nothing Nothing
+    G.widgetShow scroll
+    G.boxPackStart vbox scroll G.PackGrow 0
+
     table <- G.textTagTableNew
     buf <- G.sourceBufferNew (Just table)
     etag <- G.textTagNew Nothing
@@ -33,8 +39,10 @@ codePageCreate ref f = do
     
     G.widgetModifyFont v $ Just font
     G.textViewSetEditable v True
+    G.widgetShow v
+    G.containerAdd scroll v
 
-    pgid <- G.notebookAppendPage nb v f
+    pgid <- G.notebookAppendPage nb vbox f
     root <- mkRootRegion pgid buf 
 
     let newpg = PageContext { pgID         = pgid
