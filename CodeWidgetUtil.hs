@@ -8,8 +8,8 @@ import Util
 import CodeWidgetTypes
 
 dbgPrints :: Bool
---dbgPrints = False
-dbgPrints = True
+dbgPrints = False
+--dbgPrints = True
 mpStrLn :: String -> IO ()
 mpStrLn s = do case dbgPrints of
                     True  -> putStrLn s

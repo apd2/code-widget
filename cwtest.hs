@@ -53,15 +53,15 @@ main = do
   set htag2 [textTagBackground := colorCont]
 
   -- put CodeWidget in a scrolled window
-  sw <- scrolledWindowNew Nothing Nothing
-  sw `containerAdd` sv
-  scrolledWindowSetPolicy sw PolicyAutomatic PolicyAutomatic
-  sw `scrolledWindowSetShadowType` ShadowIn
+  --sw <- scrolledWindowNew Nothing Nothing
+  --sw `containerAdd` sv
+  --scrolledWindowSetPolicy sw PolicyAutomatic PolicyAutomatic
+  --sw `scrolledWindowSetShadowType` ShadowIn
 
   -- Add some buttons to drive tests
   vbox <- vBoxNew False 0
   widgetShow vbox
-  boxPackStart vbox sw PackGrow 0
+  boxPackStart vbox sv PackGrow 0
   bbox <- hButtonBoxNew
   buttonBoxSetLayout bbox ButtonboxStart
   widgetShow bbox

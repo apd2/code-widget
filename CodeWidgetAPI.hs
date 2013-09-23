@@ -62,7 +62,7 @@ codePageCreate ref f = do
     -- buf signals
     _ <- G.on    buf G.deleteRange      (bufSigDeleteRange ref)
     _ <- G.after buf G.bufferInsertText (bufSigInsertText ref)
-    _ <- G.on    v   G.pasteClipboard   (viewSigPasteClibB  ref)
+    _ <- G.after v   G.pasteClipboard   (viewSigPasteClibB  ref)
 
     return $ Region pgid rootRegion
 

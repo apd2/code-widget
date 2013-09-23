@@ -50,8 +50,8 @@ viewSigPasteClibB ref = do cv <- readIORef ref
                            nbi <- cvCurPage cv
                            case getContexts cv (Region nbi rootRegion) of
                                 Nothing      -> return ()
-                                Just (pg,rc) -> do pos <- cvCursorPos pg
-                                                   putStrLn $ "viewSigPasteClibB:" ++ show pos
+                                Just (pg,rc) -> do cvSetEditFlags pg
+                                                   
 
 
 cvRgnCreateEmpty :: RCodeView -> CwRef -> SourcePos -> Bool -> IO() -> IO Region
