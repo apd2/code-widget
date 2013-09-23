@@ -7,8 +7,8 @@ import Data.List
 import Util
 import CodeWidgetTypes
 
---dbgPrints :: Bool
-dbgPrints = False
+dbgPrints :: Bool
+--dbgPrints = False
 dbgPrints = True
 mpStrLn :: String -> IO ()
 mpStrLn s = do case dbgPrints of

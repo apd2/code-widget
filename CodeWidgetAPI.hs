@@ -87,13 +87,15 @@ codeRegionEditable :: RCodeView -> Region -> Bool -> IO ()
 codeRegionEditable ref r b = do
     cv <- readIORef ref
     case getContexts cv r of
-          Nothing  -> error ("regionEditable: cannot find parent region " ++ (show r))
-          Just (p,x) -> do let nx = x{rcEditable = b}
-                           let ox = otherRegions p (rcRegion x) 
-                           let np = p {pgRegions = nx:ox}
-                           let op = otherPages cv (pgID p)
-                           writeIORef ref cv {cvPages = np:op}
-                           return ()
+          Nothing  -> error ("regionEditable: cannot find region " ++ (show r))
+          Just (p,x) -> if ([] == childRegions p x) 
+                            then do  let nx = x{rcEditable = b}
+                                     let ox = otherRegions p (rcRegion x) 
+                                     let np = p {pgRegions = nx:ox}
+                                     let op = otherPages cv (pgID p)
+                                     writeIORef ref cv {cvPages = np:op}
+                                     return ()
+                            else error ("regionEditable: cannot change region with nested subregions")
                               
                       
 codeRegionDelete :: RCodeView -> Region -> IO ()
