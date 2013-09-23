@@ -43,6 +43,9 @@ main = do
 
   rr <- pageCreate c fnm
 
+  rr2 <- pageCreate c "CodeWidgetAPI.hs"
+  rr3 <- pageCreate c "CodeWidgetInternal.hs"
+
   --get some tags to highlite it with
   htag1 <- tagNew c rr
   set htag1 [textTagBackground := colorCont]

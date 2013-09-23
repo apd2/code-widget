@@ -199,6 +199,7 @@ codeRegionApplyTag ref r t (from, to) = do
                                rto   <- rgnMapPos pg x to
                                siter <- rootIterFromPos pg rfrom
                                eiter <- rootIterFromPos pg rto
+                               cvSetMyPage cv pg
                                G.textBufferApplyTag (pgBuffer pg) t siter eiter
 
 
@@ -261,8 +262,9 @@ codeRegionScrollToPos ref r pos = do
             Nothing     -> error ("regionScrollToPos: region not found: " ++ (show r))
             Just (pg,x) -> do rpos <- rgnMapPos pg x pos
                               apos <- cvAllowForPriorSubs pg x rpos
-                              t3 <- rootIterFromPos pg apos
-                              _ <- G.textViewScrollToIter (pgView pg) t3 0.4 Nothing
+                              t3   <- rootIterFromPos pg apos
+                              cvSetMyPage cv pg
+                              _    <- G.textViewScrollToIter (pgView pg) t3 0.4 Nothing
                               return ()
 
 

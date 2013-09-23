@@ -14,6 +14,11 @@ import CodeWidgetUtil
 cvCurPage :: CodeView -> IO PageID
 cvCurPage cv = do G.notebookGetCurrentPage $ cvNotebook cv
 
+cvSetMyPage :: CodeView -> PageContext -> IO ()
+cvSetMyPage cv pg = do let nbpg = cvNotebook cv
+                       let pgid = pgID pg
+                       G.notebookSetCurrentPage nbpg pgid
+
 rgnChangeCB :: CodeView -> PageContext -> G.TextIter -> IO ()
 rgnChangeCB cv pg ti = do ploc <- posFromIter pg ti
                           mrc  <- cvWhoHoldsPos pg ploc
