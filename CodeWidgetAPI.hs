@@ -267,7 +267,7 @@ codeRegionScrollToPos ref r pos = do
                               apos <- cvAllowForPriorSubs pg x rpos
                               t3   <- rootIterFromPos pg apos
                               cvSetMyPage cv pg
-                              _    <- G.textViewScrollToIter (pgView pg) t3 0.4 Nothing
+                              _    <- G.textViewScrollToIter (pgView pg) t3 0.1 Nothing
                               return ()
 
 
