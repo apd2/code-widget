@@ -112,7 +112,7 @@ codeRegionDelete ref r = do
                                   G.textBufferDeleteMark (pgBuffer pg) (rcEnd x)
                                   let npg = pg {pgRegions = newrgns}
                                   let ops = otherPages cv (pgID npg)
-                                  let ncv = cv {cvPages = ops}
+                                  let ncv = cv {cvPages = npg:ops}
                                   writeIORef ref ncv
                                   cvSetEditFlags pg 
         else if' ((rid r) == 0) (error "regionDelete: attempt to delete root region!") (error $ "regionDelete: invalid negative region " ++ (show r))
@@ -264,8 +264,8 @@ codeRegionScrollToPos ref r pos = do
     case getContexts cv r of
             Nothing     -> error ("regionScrollToPos: region not found: " ++ (show r))
             Just (pg,x) -> do rpos <- rgnMapPos pg x pos
-                              apos <- cvAllowForPriorSubs pg x rpos
-                              t3   <- rootIterFromPos pg apos
+                              --apos <- cvAllowForPriorSubs pg x rpos
+                              t3   <- rootIterFromPos pg rpos
                               cvSetMyPage cv pg
                               _    <- G.textViewScrollToIter (pgView pg) t3 0.1 Nothing
                               return ()
