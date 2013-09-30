@@ -94,7 +94,7 @@ codeRegionEditable ref r b = do
                                      let np = p {pgRegions = nx:ox}
                                      let op = otherPages cv (pgID p)
                                      writeIORef ref cv {cvPages = np:op}
-                                     cvSetEditFlags p 
+                                     cvSetEditFlags np 
                                      return ()
                             else error ("regionEditable: cannot change region with nested subregions")
                               
