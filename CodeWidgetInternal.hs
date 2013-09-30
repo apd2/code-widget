@@ -228,6 +228,7 @@ cvRgnPosInside pg rc pos = do
 cvAdjustForSub :: PageContext -> SourcePos -> RegionContext -> IO SourcePos
 cvAdjustForSub pg pos rc = do
     let ln = rgnInitLine pg rc
+        col = sourceColumn $ rgnInitPos pg rc
     let fn = sourceName pos
     let rn = rcRegion rc
     if rn == rootRegion
@@ -238,7 +239,7 @@ cvAdjustForSub pg pos rc = do
                         let np =  newPos fn nln (sourceColumn pos)
                         mpStrLn $ "cvAdjustForSub:(" ++ show rn ++ "):" ++ show pos ++ " H:" ++ show h
                         return np
-                else if sourceLine pos == ln
+                else if sourceLine pos == ln && sourceColumn pos > col
                         then do w <- rgnWidth pg rc
                                 h <- rgnHeight pg rc
                                 let ncol = (sourceColumn pos) + w
