@@ -114,7 +114,7 @@ codeRegionDelete ref r = do
                                   let ops = otherPages cv (pgID npg)
                                   let ncv = cv {cvPages = npg:ops}
                                   writeIORef ref ncv
-                                  cvSetEditFlags pg 
+                                  cvSetEditFlags npg 
         else if' ((rid r) == 0) (error "regionDelete: attempt to delete root region!") (error $ "regionDelete: invalid negative region " ++ (show r))
 
 
