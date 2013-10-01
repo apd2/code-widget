@@ -42,7 +42,7 @@ type PageID   = Int
 
 data Region = Region { pid :: PageID
                      , rid :: RegionID
-                     } deriving (Show) 
+                     } deriving (Show, Eq) 
 
 -- Root region is created automatically with the widget and cannot be destroyed
 rootRegion :: RegionID
