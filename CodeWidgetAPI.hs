@@ -133,7 +133,6 @@ codeRegionGetBoundedText ref r (from, to) = do
             Nothing      -> error ("regionGetBoundedText: region not found: " ++ (show r))
             Just (pg,rc) -> do s <- rgnMapPos pg rc from
                                e <- rgnMapPos pg rc to
-                               putStrLn $ "regionGetBoundedText s=" ++ show s ++ " e=" ++ show e
                                si <- rootIterFromPos pg s
                                ei <- rootIterFromPos pg e
                                cvRgnGetText pg si ei False
