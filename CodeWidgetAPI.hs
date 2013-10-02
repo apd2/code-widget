@@ -130,9 +130,10 @@ codeRegionGetBoundedText :: RCodeView -> Region -> (SourcePos, SourcePos) -> IO 
 codeRegionGetBoundedText ref r (from, to) = do
     cv <- readIORef ref
     case getContexts cv r of 
-            Nothing      -> error ("regionGetText: region not found: " ++ (show r))
+            Nothing      -> error ("regionGetBoundedText: region not found: " ++ (show r))
             Just (pg,rc) -> do s <- rgnMapPos pg rc from
                                e <- rgnMapPos pg rc to
+                               putStrLn $ "regionGetBoundedText s=" ++ show s ++ " e=" ++ show e
                                si <- rootIterFromPos pg s
                                ei <- rootIterFromPos pg e
                                cvRgnGetText pg si ei False
@@ -143,7 +144,7 @@ codeRegionSetText :: RCodeView -> Region -> String -> IO ()
 codeRegionSetText ref r txt = do
     cv <- readIORef ref
     case getContexts cv r of 
-            Nothing      -> error ("regionGetText: region not found: " ++ (show r))
+            Nothing      -> error ("regionSetText: region not found: " ++ (show r))
             Just (pg,rc) -> if (isRoot rc) 
                               then do G.textBufferSetText (pgBuffer pg) txt
                                   

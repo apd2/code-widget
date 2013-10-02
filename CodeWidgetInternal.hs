@@ -213,7 +213,9 @@ rgnMapPos :: PageContext -> RegionContext -> SourcePos -> IO SourcePos
 rgnMapPos pg rc p = do
     p2 <- rgnStartPos pg rc
     let nl = (sourceLine p) + (sourceLine p2) - 1
-    let nc = (sourceColumn p) + (sourceColumn p2) - 1
+    let nc = if sourceLine p == 1
+                then (sourceColumn p) + (sourceColumn p2) - 1
+                else sourceColumn p
     let np = newPos (sourceName p) nl nc
     cvAllowForPriorSubs pg rc np
 
