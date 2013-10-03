@@ -121,6 +121,14 @@ rgnEndPos pg rc = do
     iter <- rgnEnd pg rc
     posFromIter pg iter
 
+-- test if region has no text
+rgnEmpty :: PageContext -> RegionContext -> IO Bool
+rgnEmpty pg rc = do
+    s <- rgnStartPos pg rc
+    e <- rgnEndPos pg rc
+    return $ if' (s == e) True False
+
+
 -- return the number of lines in a region
 rgnHeight :: PageContext -> RegionContext -> IO Line
 rgnHeight pg rc = do

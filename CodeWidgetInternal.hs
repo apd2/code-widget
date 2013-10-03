@@ -7,6 +7,7 @@ import Text.Parsec.Pos
 --import Data.List
 import Data.IORef
 import Control.Monad
+import Control.Monad.IO.Class
 import Util
 import CodeWidgetTypes
 import CodeWidgetUtil
@@ -52,6 +53,34 @@ viewSigPasteClibB ref = do cv <- readIORef ref
                                 Nothing      -> return ()
                                 Just (pg,rc) -> do cvSetEditFlags pg
                                                    
+
+viewKeyRelease :: RCodeView -> G.EventM G.EKey Bool
+viewKeyRelease ref = do cv <- liftIO $ readIORef ref
+                        pi <- liftIO $ cvCurPage cv
+                        case getPage cv pi of
+                             Nothing -> return False
+                             Just pg -> do cp  <- liftIO $ cvCursorPos pg
+                                           mrc <- liftIO $ cvWhoHoldsPos pg cp
+                                           case mrc of 
+                                                Nothing -> return False
+                                                Just rc -> do emp <- liftIO $ rgnEmpty pg rc
+                                                              if emp 
+                                                                  then do ks <- G.eventKeyName
+                                                                          kv <- G.eventKeyVal
+                                                                          let mc = G.keyToChar kv
+                                                                          case mc of 
+                                                                            Nothing -> if ks == "Return"
+                                                                                          then do si <- liftIO $ rgnStart pg rc
+                                                                                                  liftIO $ cvRgnInsertText pg si "\n"
+                                                                                                  liftIO $ cvRgnEditable pg rc
+                                                                                                  return True
+                                                                                          else return False
+                                                                            Just c  -> do si <- liftIO $ rgnStart pg rc
+                                                                                          liftIO $ cvRgnInsertText pg si [c]
+                                                                                          liftIO $ cvRgnEditable pg rc
+                                                                                          return True
+                                                                  else return False 
+
 
 
 cvRgnCreateEmpty :: RCodeView -> CwRef -> SourcePos -> Bool -> IO() -> IO Region

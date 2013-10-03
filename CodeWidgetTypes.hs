@@ -7,6 +7,7 @@ module CodeWidgetTypes (Code(..),
                         CwView,
                         CwIter,
                         CwRef,
+                        CwSBar(..),
                         RegionID,
                         rootRegion,
                         noRegion,
@@ -35,6 +36,7 @@ fontSrc    = "Courier 10 Pitch"
 --encapsulate types from gtk
 type CwView  = G.SourceView
 type CwIter  = G.TextIter
+type CwSBar  = G.Entry
 
 -- Region ID
 type RegionID = Int
@@ -143,13 +145,15 @@ data CodeView = CodeView {
     cvFont        :: G.FontDescription,
     cvPages       :: [PageContext],
     cvNotebook    :: G.Notebook,
+    cvSBar        :: CwSBar,
     cvNextPage    :: Int
 }
 
 -- Code - tupple containing a CwAPI and a CwView, api and view for a CodeWidget Instance
 data Code = Code {
     codeApi     :: CwAPI,
-    codeWidget  :: G.Widget
+    codeWidget  :: G.Widget,
+    codePos     :: G.Widget
 }
 
 -- wrapped version

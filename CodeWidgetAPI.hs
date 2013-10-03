@@ -8,6 +8,7 @@ import Util
 import CodeWidgetTypes
 import CodeWidgetUtil
 import CodeWidgetInternal
+import CodeWidgetSBar
 
 
 -- Individual API functions
@@ -58,11 +59,18 @@ codePageCreate ref f = do
     writeIORef ref cv { cvPages = newpg:(cvPages cv)}
     iter <- G.textBufferGetStartIter buf
     cvRgnInsertText newpg iter txt
+    iter <- G.textBufferGetStartIter buf
+    G.textBufferPlaceCursor buf iter
+    nbi <- cvCurPage cv
+    csbCursUpdate cv nbi
+
     -- setup signal handlers
     -- buf signals
     _ <- G.on    buf G.deleteRange      (bufSigDeleteRange ref)
     _ <- G.after buf G.bufferInsertText (bufSigInsertText ref)
     _ <- G.after v   G.pasteClipboard   (viewSigPasteClibB  ref)
+    _ <- G.on    v   G.keyReleaseEvent  (viewKeyRelease ref)
+    _ <- G.after v   G.moveCursor       (csbCursMove ref)
 
     return $ Region pgid rootRegion
 
@@ -222,8 +230,7 @@ codeRegionSetMark ref r m p = do
     case getContexts cv r of
             Nothing     -> error ("regionSetMark: region not found: " ++ (show r))
             Just (pg,x) -> do rpos <- rgnMapPos pg x p
-                              apos <- cvAllowForPriorSubs pg x rpos
-                              iter <- G.textBufferGetIterAtLineOffset (pgBuffer pg) (sourceLine apos - 1) (sourceColumn apos - 1) 
+                              iter <- G.textBufferGetIterAtLineOffset (pgBuffer pg) (sourceLine rpos - 1) (sourceColumn rpos - 1) 
                               G.textBufferAddMark (pgBuffer pg) m iter
 
 codeRegionGetIter :: RCodeView -> Region -> SourcePos -> IO G.TextIter
@@ -232,8 +239,7 @@ codeRegionGetIter ref r p = do
     case getContexts cv r of
             Nothing     -> error ("regionGetIter: region not found: " ++ (show r))
             Just (pg,x) -> do rpos <- rgnMapPos pg x p
-                              apos <- cvAllowForPriorSubs pg x rpos
-                              G.textBufferGetIterAtLineOffset (pgBuffer pg) (sourceLine apos - 1) (sourceColumn apos - 1)
+                              G.textBufferGetIterAtLineOffset (pgBuffer pg) (sourceLine rpos - 1) (sourceColumn rpos - 1)
                         
 codeRegionGetSelection :: RCodeView -> Region -> IO (Maybe CwSelection)
 codeRegionGetSelection ref r = do
@@ -264,7 +270,6 @@ codeRegionScrollToPos ref r pos = do
     case getContexts cv r of
             Nothing     -> error ("regionScrollToPos: region not found: " ++ (show r))
             Just (pg,x) -> do rpos <- rgnMapPos pg x pos
-                              --apos <- cvAllowForPriorSubs pg x rpos
                               t3   <- rootIterFromPos pg rpos
                               cvSetMyPage cv pg
                               _    <- G.textViewScrollToIter (pgView pg) t3 0.1 Nothing

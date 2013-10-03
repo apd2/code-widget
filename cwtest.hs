@@ -40,6 +40,7 @@ main = do
   cd <- codeWidgetNew "haskell"  800 800 
   let c =  codeApi cd
   let sv = codeWidget cd
+  let sp = codePos cd
 
   rr <- pageCreate c fnm
 
@@ -66,6 +67,8 @@ main = do
   buttonBoxSetLayout bbox ButtonboxStart
   widgetShow bbox
   boxPackStart vbox bbox PackNatural 0
+  boxPackEnd  vbox sp PackNatural 0
+
   b1 <- buttonNewWithLabel "hilite 1"
   b2 <- buttonNewWithLabel "unhilite 1"
   b3 <- buttonNewWithLabel "GetText root"

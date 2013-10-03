@@ -14,6 +14,7 @@ import qualified Graphics.UI.Gtk.SourceView as G
 import Data.IORef
 import CodeWidgetTypes
 import CodeWidgetAPI
+import CodeWidgetSBar
 
 {--
 design considerations:
@@ -56,14 +57,19 @@ codeWidgetNew l w h = do
     nb <- G.notebookNew
     font <- G.fontDescriptionFromString fontSrc
     G.widgetSetSizeRequest nb w h
+    G.widgetShow nb
+    sbar <- createSBar 
+    G.widgetShow $ G.toWidget sbar
 
     ref <- newIORef $ CodeView { cvNotebook   = nb
+                               , cvSBar       = sbar
                                , cvLanguage   = lng
                                , cvPages      = []
                                , cvFont       = font
                                , cvNextPage   = 0
                                }
 
+    _ <- G.after nb G.switchPage (csbSwitchPage ref)
 
     return $ Code { codeApi = CwAPI { pageCreate            = codePageCreate       ref
                                     , regionCreate          = codeRegionCreate     ref
@@ -86,6 +92,7 @@ codeWidgetNew l w h = do
                                     , dumpRegions           = codeDumpRegions      ref
                                     }
                   , codeWidget = G.toWidget nb
+                  , codePos    = G.toWidget sbar
                   }
 
 
