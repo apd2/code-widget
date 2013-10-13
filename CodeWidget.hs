@@ -55,6 +55,7 @@ codeWidgetNew l w h = do
                   Nothing -> error $ "Can't find " ++ l ++ " Language Definition"
                   Just x  -> return x)
     nb <- G.notebookNew
+    G.notebookSetScrollable nb True
     font <- G.fontDescriptionFromString fontSrc
     G.widgetSetSizeRequest nb w h
     G.widgetShow nb
