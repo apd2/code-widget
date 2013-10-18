@@ -91,8 +91,13 @@ cvRgnCreateEmpty ref (pg, parent) from ed f =  do
     let currgns = pgRegions pg
     smk <- newLeftMark
     emk <- newRightMark
+    bgt <- G.textTagNew Nothing
+    let edepth = eRgnNestDepth pg (rcRegion parent)
+    let bcolor = getRgnBgColor edepth
+    G.set bgt [G.textTagBackground G.:= bcolor]
+    G.textTagTableAdd (pgTagTable pg) bgt
+    G.textTagSetPriority bgt 2
     rfm <- rgnMapPos pg parent from
-    mpStrLn $ "cvRgnCreateEmpty: " ++ show rfm
     itfm <- rootIterFromPos pg rfm
     G.textBufferAddMark (pgBuffer pg) smk itfm
     G.textBufferAddMark (pgBuffer pg) emk itfm
@@ -107,9 +112,11 @@ cvRgnCreateEmpty ref (pg, parent) from ed f =  do
                                , rcCallBack   = Just f
                                , rcInitWidth  = 0
                                , rcInitHeight = 0
+                               , rcBgTag      = bgt
                                }
     let newpg = pg { pgNextRegion = nextr + 1, pgRegions = newrgn:currgns }
     writeIORef ref cv { cvPages = newpg:(cvPages cv) }
+    cvSetEditFlags newpg
     return rgn
 
 --Create new region from existing region - supports 3 cases: new/parent, parent/new, and parent/new/parent. 
@@ -123,6 +130,12 @@ cvRgnCreateFrom ref (pg,rc) from to ed sib f =  do
     let par = rcRegion rc
     smk <- newLeftMark
     emk <- newRightMark
+    bgt <- G.textTagNew Nothing
+    let edepth = eRgnNestDepth pg $ if' (sib == False) par (rcParent rc)
+    let bcolor = getRgnBgColor edepth
+    G.set bgt [ G.textTagBackground G.:= bcolor ]
+    G.textTagTableAdd (pgTagTable pg) bgt
+    G.textTagSetPriority bgt 2
     rfm <- rgnMapPos pg rc from
     rto <- rgnMapPos pg rc to
     st  <- rgnStartPos pg rc
@@ -133,7 +146,7 @@ cvRgnCreateFrom ref (pg,rc) from to ed sib f =  do
         then  do {-- if startpos == the parent region start, then the new region
                   goes ahead of the current region the new region gets the parent's
                   rcStart and rcStartPos.  --} 
-              mpStrLn $ "cvRgnCreateFrom<head> : " ++ show rfm ++ " " ++ show rto
+              --mpStrLn $ "cvRgnCreateFrom<head> : " ++ show rfm ++ " " ++ show rto
               itto <- rootIterFromPos pg rto
               G.textBufferAddMark (pgBuffer pg) smk itto  -- new start mark for parent
               G.textBufferAddMark (pgBuffer pg) emk itto  -- new end mark for new region
@@ -148,6 +161,7 @@ cvRgnCreateFrom ref (pg,rc) from to ed sib f =  do
                                          , rcCallBack   = Just f
                                          , rcInitWidth = c
                                          , rcInitHeight = h
+                                         , rcBgTag      = bgt
                                          }
               let newPar =  rc { rcStart    = smk
                                , rcStartPos = rfm
@@ -161,7 +175,7 @@ cvRgnCreateFrom ref (pg,rc) from to ed sib f =  do
         else if nd == rto
                 then  do {-- If endpos = parent's endpos, new region goes after parent. new region
                           gets parent's rcEnd, parent gets new rcEnd from newregion's startpos --}
-                      mpStrLn $ "cvRgnCreateFrom<tail> : " ++ show rfm ++ " " ++ show rto
+                      --mpStrLn $ "cvRgnCreateFrom<tail> : " ++ show rfm ++ " " ++ show rto
                       itfm <- rootIterFromPos pg rfm
                       G.textBufferAddMark (pgBuffer pg) smk itfm
                       G.textBufferAddMark (pgBuffer pg) emk itfm
@@ -176,6 +190,7 @@ cvRgnCreateFrom ref (pg,rc) from to ed sib f =  do
                                                  , rcCallBack   = Just f
                                                  , rcInitWidth = c
                                                  , rcInitHeight = h
+                                                 , rcBgTag      = bgt
                                                  }
                       let newPar = rc { rcEnd = emk}
 
@@ -186,7 +201,7 @@ cvRgnCreateFrom ref (pg,rc) from to ed sib f =  do
                       cvSetEditFlags newpg
                       return rgn
                 else  do -- Nothing special - parent area becomes new subregion
-                      mpStrLn $ "cvRgnCreateFrom<emb> : " ++ show rfm ++ " " ++ show rto
+                      --mpStrLn $ "cvRgnCreateFrom<emb> : " ++ show rfm ++ " " ++ show rto
                       itfm <- rootIterFromPos pg rfm
                       itto <- rootIterFromPos pg rto
                       G.textBufferAddMark (pgBuffer pg) smk itfm
@@ -202,6 +217,7 @@ cvRgnCreateFrom ref (pg,rc) from to ed sib f =  do
                                                  , rcCallBack   = Just f
                                                  , rcInitWidth = c
                                                  , rcInitHeight = h
+                                                 , rcBgTag      = bgt
                                                  }
                       let newpg = pg { pgNextRegion =  nextr + 1, pgRegions = newrgn:rc:othrgns }
                       let ops = otherPages cv (pgID newpg) 
@@ -229,13 +245,24 @@ cvRgnStatic pg rc = do
     let tag = pgEditTag pg
     G.textBufferRemoveTag buf tag si ei
     G.textBufferApplyTag buf tag si ei 
+    mapM_ (\x -> do G.textMarkSetVisible (rcStart x) False
+                    G.textMarkSetVisible (rcEnd x) False 
+                    si <- rgnStart pg x
+                    ei <- rgnEnd   pg x
+                    G.textBufferRemoveTag (pgBuffer pg) (rcBgTag x) si ei ) (pgRegions pg)
 
 -- setup GTK goodies to make a region editable 
 cvRgnEditable :: PageContext -> RegionContext -> IO ()
 cvRgnEditable pg rc = do
     si <- rgnStart pg rc
     ei <- rgnEnd   pg rc
+    ssi <- dumpIter si
+    eei <- dumpIter ei
+    mpStrLn $ "    cvRgnEditable: " ++ show (rcRegion rc) ++ " Fm:" ++ ssi ++ " To:" ++ eei
     G.textBufferRemoveTag (pgBuffer pg) (pgEditTag pg) si ei
+    G.textBufferApplyTag (pgBuffer pg) (rcBgTag rc) si ei
+    G.textMarkSetVisible (rcStart rc) True
+    G.textMarkSetVisible (rcEnd rc) True
 
 -- map a Region.SourcePos to a global buffer position - makes adjustments for other subregions
 rgnMapPos :: PageContext -> RegionContext -> SourcePos -> IO SourcePos
@@ -254,6 +281,7 @@ cvRgnPosInside pg rc pos = do
     sp <- rgnStartPos pg rc
     ep <- rgnEndPos pg rc
     return $ if' (sp <= pos && ep >= pos) True False
+
 
 -- Adjust a region position to account for a preceeding subregion
 -- (returns (delta-y, delta-x), e.g., (0,0) if not adjustment is needed). 
@@ -295,7 +323,7 @@ cvInsertMark ref pg rc = do cv <- readIORef ref
                                 Nothing -> do mk <- newRightMark
                                               st <- rgnStart pg rc
                                               pos <- posFromIter pg st
-                                              mpStrLn $ "cvInsertMark:" ++ show (rcRegion rc) ++ " T:" ++ show pos
+                                              --mpStrLn $ "cvInsertMark:" ++ show (rcRegion rc) ++ " T:" ++ show pos
                                               G.textBufferAddMark (pgBuffer pg) mk st
                                               let nrc = rc {rcInsert = (Just mk)}
                                               let orc = otherRegions pg (rcRegion nrc)
@@ -309,13 +337,18 @@ cvInsertMark ref pg rc = do cv <- readIORef ref
 
     
 -- create the initial root region
-mkRootRegion :: PageID -> G.SourceBuffer -> IO RegionContext
-mkRootRegion p bf =  do smk <- newLeftMark
+mkRootRegion :: PageID -> G.SourceBuffer -> G.TextTagTable -> IO RegionContext
+mkRootRegion p b t = do smk <- newLeftMark
                         emk <- newRightMark
-                        i1 <- G.textBufferGetStartIter bf
-                        i2 <- G.textBufferGetStartIter bf
-                        G.textBufferAddMark bf smk i1 
-                        G.textBufferAddMark bf emk i2 
+                        bgt <- G.textTagNew Nothing
+                        vmk <- G.textTagNew Nothing
+                        G.set bgt [G.textTagBackground G.:= (getRgnBgColor rootRegion)]
+                        G.textTagTableAdd t bgt
+                        G.textTagSetPriority bgt 1
+                        i1 <- G.textBufferGetStartIter b
+                        i2 <- G.textBufferGetStartIter b
+                        G.textBufferAddMark b smk i1 
+                        G.textBufferAddMark b emk i2 
                         let pos = newPos "" 1 1
                         let r =  RegionContext  { rcRegion   = rootRegion
                                                 , rcPage     = p
@@ -328,6 +361,7 @@ mkRootRegion p bf =  do smk <- newLeftMark
                                                 , rcCallBack = Nothing
                                                 , rcInitWidth = 0
                                                 , rcInitHeight = 0
+                                                , rcBgTag     = bgt
                                                 }
                         return r
 
@@ -345,14 +379,14 @@ cvRgnGetText :: PageContext -> G.TextIter -> G.TextIter -> Bool -> IO String
 cvRgnGetText pg es ee b = do
       spos <- posFromIter pg es
       epos <- posFromIter pg ee
-      mpStrLn $ "GET TEXT - S:" ++ (show spos) ++ " E:" ++ (show epos)
+      --mpStrLn $ "GET TEXT - S:" ++ (show spos) ++ " E:" ++ (show epos)
       G.textBufferGetText (pgBuffer pg) es ee b
 
 -- wrapper around G.textBufferInsertText - debugging aid
 cvRgnInsertText :: PageContext -> G.TextIter -> String -> IO ()
 cvRgnInsertText pg es t = do
       spos <- posFromIter pg es
-      mpStrLn $ "INSERT TEXT - S:" ++ (show spos) ++ " T:" ++ t
+      --mpStrLn $ "INSERT TEXT - S:" ++ (show spos) ++ " T:" ++ t
       G.textBufferInsert (pgBuffer pg) es t
 
 -- Build a string from the gaps between the regions in the list
@@ -361,7 +395,7 @@ cvSubRgnGapText _  []  = do return ""
 cvSubRgnGapText _  (_:[]) = do  return ""
 cvSubRgnGapText pg (x:xs) = do  es <- rgnEnd pg x 
                                 let x2 = head xs
-                                mpStrLn $ "cvSubRgnGapText: regions:" ++ show (rcRegion x) ++","++ show (rcRegion x2)
+                                --mpStrLn $ "cvSubRgnGapText: regions:" ++ show (rcRegion x) ++","++ show (rcRegion x2)
                                 ee <- rgnStart pg x2
                                 s1 <- cvRgnGetText pg es ee False
                                 s2 <- cvSubRgnGapText pg xs
@@ -379,7 +413,7 @@ cvSubRgnText pg rc = do
                               ee1 <- rgnStart pg x  
                               es3 <- rgnEnd pg x
                               ee3 <- rgnEnd pg rc
-                              mpStrLn "cvSubRgnText: single subregion"
+                              --mpStrLn "cvSubRgnText: single subregion"
                               s1 <- cvRgnGetText pg es1 ee1 False
                               s3 <- cvRgnGetText pg es3 ee3 False
                               return $ s1 ++ s3
@@ -388,7 +422,7 @@ cvSubRgnText pg rc = do
                               let x2 = last xs
                               es3 <- rgnEnd pg x2
                               ee3 <- rgnEnd pg rc
-                              mpStrLn "cvSubRgnText: multiple subregions"
+                              --mpStrLn "cvSubRgnText: multiple subregions"
                               s1 <- cvRgnGetText pg es1 ee1 False
                               s2 <- cvSubRgnGapText pg (x:xs)
                               s3 <- cvRgnGetText pg es3 ee3 False
@@ -413,6 +447,13 @@ cvCursorPos pg = do
     offs <- G.textIterGetLineOffset iter
     return $ newPos (pgFileName pg) (ln + 1) (offs + 1)
     
+
+dumpIter :: G.TextIter -> IO String
+dumpIter ti = do ln <- G.textIterGetLine ti
+                 co <- G.textIterGetLineOffset ti
+                 return $ "[LN: " ++ show (ln + 1) ++ " CO:" ++ show (co + 1) ++ "]"
+
+
 -- debugging: display current state of a region
 dumpRgn :: PageContext -> RegionContext -> IO String
 dumpRgn pg rgn = do
@@ -430,5 +471,6 @@ dumpRgn pg rgn = do
       rw <- rgnWidth  pg rgn
       let rhs = "HT:" ++ show rh ++ " "
       let rws = "WD:" ++ show rw ++ " "
-      return $ rs ++ ps ++ es ++ fs ++ ts ++ ss ++ ws ++ hs ++ rhs ++ rws
+      let ed = if' (rcEditable rgn) (show (eRgnNestDepth pg (rcParent rgn))) ""
+      return $ rs ++ ps ++ es ++ fs ++ ts ++ ss ++ ws ++ hs ++ rhs ++ rws ++ ed
 
