@@ -256,36 +256,36 @@ cvRgnPosInside pg rc pos = do
     return $ if' (sp <= pos && ep >= pos) True False
 
 -- Adjust a region position to account for a preceeding subregion
-cvAdjustForSub :: PageContext -> SourcePos -> RegionContext -> IO SourcePos
+cvAdjustForSub :: PageContext -> SourcePos -> RegionContext -> IO (Int, Int)
 cvAdjustForSub pg pos rc = do
     let ln = rgnInitLine pg rc
         col = sourceColumn $ rgnInitPos pg rc
-    let fn = sourceName pos
+    -- let fn = sourceName pos
     let rn = rcRegion rc
     if rn == rootRegion
-        then do return pos
+        then do return (0,0)
         else if sourceLine pos > ln
                 then do h <- rgnHeight pg rc
-                        let nln = (sourceLine pos) + h
-                        let np =  newPos fn nln (sourceColumn pos)
+                        --let nln = (sourceLine pos) + h
+                        -- let np =  newPos fn nln (sourceColumn pos)
                         mpStrLn $ "cvAdjustForSub:(" ++ show rn ++ "):" ++ show pos ++ " H:" ++ show h
-                        return np
+                        return (h, 0)
                 else if sourceLine pos == ln && sourceColumn pos > col
                         then do w <- rgnWidth pg rc
                                 h <- rgnHeight pg rc
-                                let ncol = (sourceColumn pos) + w
-                                let np =  newPos fn (h + (sourceLine pos)) ncol
+                                -- let ncol = (sourceColumn pos) + w
+                                -- let np =  newPos fn (h + (sourceLine pos)) ncol
                                 mpStrLn $ "cvAdjustForSub:(" ++ show rn ++ "):" ++ show pos ++ " H:" ++ show h ++ " W:" ++ show w
-                                return np
+                                return (h, w)
                         else do mpStrLn $ "cvAdjustForSub:(" ++ show rn ++ ") N/A :" ++ show ln
-                                return pos
+                                return (0,0)
             
 
 -- Adjust a SourcePos for any edits done to editable sub-regions
 cvAllowForPriorSubs :: PageContext -> RegionContext -> SourcePos -> IO SourcePos
 cvAllowForPriorSubs pg rc p = do
-    np <- foldM (\rgn -> cvAdjustForSub pg rgn) p (childRegions pg rc)
-    return np
+    (dy, dx) <- (liftM ((mapSnd sum) . (mapFst sum) . unzip)) $ mapM (cvAdjustForSub pg p) (childRegions pg rc)
+    return $ newPos (sourceName p) (sourceLine p + dy) (sourceColumn p + dx)
 
 -- If region does not yet have an Insertion mark, create one and add it. Otherwise, return the existing one
 cvInsertMark :: RCodeView -> PageContext -> RegionContext -> IO G.TextMark
