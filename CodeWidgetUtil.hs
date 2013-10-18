@@ -7,19 +7,30 @@ import Data.List
 import Util
 import CodeWidgetTypes
 
+
+maybePrtStrLn :: Bool -> String -> IO ()
+maybePrtStrLn b s = do if' (b == True) (putStrLn s) (return ())
+
 dbgPrints :: Bool
---dbgPrints = False
-dbgPrints = True
+dbgPrints = False
+--dbgPrints = True
+
 mpStrLn :: String -> IO ()
-mpStrLn s = do case dbgPrints of
-                    True  -> putStrLn s
-                    False -> return ()
+mpStrLn = maybePrtStrLn dbgPrints
+
+apiDbgPrints :: Bool
+apiDbgPrints = False
+--apiDbgPrints = True;
+
+apiStrLn :: String -> IO ()
+apiStrLn = maybePrtStrLn apiDbgPrints
+
 
 rgnBgColorTbl :: [String]
 rgnBgColorTbl = "#ffdead" --orange
-              : "#d7f1ee" --g2
+              : "#d7f1ee" --lime green
               : "#ffcfca" --melon
-              : "#c5e9bc" --fff9ca" --yl
+              : "#c5e9bc" --yellow
               : []
 
 rgnFgColorTbl :: String

@@ -81,9 +81,6 @@ viewKeyRelease ref = do cv <- liftIO $ readIORef ref
                                                                                           return True
                                                                   else return False 
 
-rgnDebugCreate :: CodeView -> Region -> Int -> String -> Bool -> IO ()
-rgnDebugCreate cv r d bg e = do
-    putStrLn $ "regionCreate: " ++ show r ++ " edep:" ++ show d ++ " bg:" ++ show bg ++ " editable:" ++ show e
 
 
 cvRgnCreateEmpty :: RCodeView -> CwRef -> SourcePos -> Bool -> IO() -> IO Region
@@ -95,16 +92,12 @@ cvRgnCreateEmpty ref (pg, parent) from ed f =  do
     smk <- newLeftMark
     emk <- newRightMark
     bgt <- G.textTagNew Nothing
-    vmk <- G.textTagNew Nothing
     let edepth = eRgnNestDepth pg (rcRegion parent)
     let bcolor = getRgnBgColor edepth
-    let fcolor = getRgnFgColor edepth
-    --rgnDebugCreate cv rgn edepth bcolor ed
     G.set bgt [G.textTagBackground G.:= bcolor]
     G.textTagTableAdd (pgTagTable pg) bgt
     G.textTagSetPriority bgt 2
     rfm <- rgnMapPos pg parent from
-    --mpStrLn $ "cvRgnCreateEmpty: " ++ show rfm
     itfm <- rootIterFromPos pg rfm
     G.textBufferAddMark (pgBuffer pg) smk itfm
     G.textBufferAddMark (pgBuffer pg) emk itfm
@@ -123,7 +116,6 @@ cvRgnCreateEmpty ref (pg, parent) from ed f =  do
                                }
     let newpg = pg { pgNextRegion = nextr + 1, pgRegions = newrgn:currgns }
     writeIORef ref cv { cvPages = newpg:(cvPages cv) }
-    --rgnSetMarkVis newpg newrgn
     cvSetEditFlags newpg
     return rgn
 
@@ -139,14 +131,9 @@ cvRgnCreateFrom ref (pg,rc) from to ed sib f =  do
     smk <- newLeftMark
     emk <- newRightMark
     bgt <- G.textTagNew Nothing
-    vmk <- G.textTagNew Nothing
     let edepth = eRgnNestDepth pg $ if' (sib == False) par (rcParent rc)
     let bcolor = getRgnBgColor edepth
-    let fcolor = getRgnFgColor edepth
-    --rgnDebugCreate cv rgn edepth bcolor ed
-    G.set bgt [ G.textTagBackground G.:= bcolor
-              --, G.textTagStretch G.:= G.StretchCondensed
-              ]
+    G.set bgt [ G.textTagBackground G.:= bcolor ]
     G.textTagTableAdd (pgTagTable pg) bgt
     G.textTagSetPriority bgt 2
     rfm <- rgnMapPos pg rc from
@@ -183,7 +170,6 @@ cvRgnCreateFrom ref (pg,rc) from to ed sib f =  do
               let ops = otherPages cv (pgID newpg)
               let newcv = cv {cvPages = newpg:ops} 
               writeIORef ref newcv
-              --rgnSetMarkVis newpg newrgn
               cvSetEditFlags newpg
               return rgn
         else if nd == rto
@@ -212,7 +198,6 @@ cvRgnCreateFrom ref (pg,rc) from to ed sib f =  do
                       let ops = otherPages cv (pgID newpg)
                       let newcv = cv {cvPages = newpg:ops} 
                       writeIORef ref newcv
-                      --rgnSetMarkVis newpg newrgn
                       cvSetEditFlags newpg
                       return rgn
                 else  do -- Nothing special - parent area becomes new subregion
@@ -238,7 +223,6 @@ cvRgnCreateFrom ref (pg,rc) from to ed sib f =  do
                       let ops = otherPages cv (pgID newpg) 
                       let newcv = cv {cvPages = newpg:ops} 
                       writeIORef ref newcv
-                      --rgnSetMarkVis newpg newrgn
                       cvSetEditFlags newpg
                       return rgn
 
@@ -261,24 +245,21 @@ cvRgnStatic pg rc = do
     let tag = pgEditTag pg
     G.textBufferRemoveTag buf tag si ei
     G.textBufferApplyTag buf tag si ei 
-    mapM_ (\x -> do G.textMarkSetVisible (rcStart rc) False
-                    G.textMarkSetVisible (rcEnd rc) False 
+    mapM_ (\x -> do G.textMarkSetVisible (rcStart x) False
+                    G.textMarkSetVisible (rcEnd x) False 
                     si <- rgnStart pg x
                     ei <- rgnEnd   pg x
-                    G.textBufferRemoveTag (pgBuffer pg) (rcBgTag rc) si ei ) (pgRegions pg)
+                    G.textBufferRemoveTag (pgBuffer pg) (rcBgTag x) si ei ) (pgRegions pg)
 
 -- setup GTK goodies to make a region editable 
 cvRgnEditable :: PageContext -> RegionContext -> IO ()
 cvRgnEditable pg rc = do
     si <- rgnStart pg rc
     ei <- rgnEnd   pg rc
-    --G.textBufferRemoveTag (pgBuffer pg) (rcVisTag rc) si ei
-    --ssi <- dumpIter si
-    --eei <- dumpIter ei
-    --putStrLn $ "cvRgnEditable: " ++ show (rcRegion rc) ++ " Fm:" ++ ssi ++ " To:" ++ eei
+    ssi <- dumpIter si
+    eei <- dumpIter ei
+    mpStrLn $ "    cvRgnEditable: " ++ show (rcRegion rc) ++ " Fm:" ++ ssi ++ " To:" ++ eei
     G.textBufferRemoveTag (pgBuffer pg) (pgEditTag pg) si ei
-    --_ <- G.textIterForwardChar ei
-    --_ <- G.textIterBackwardChar si
     G.textBufferApplyTag (pgBuffer pg) (rcBgTag rc) si ei
     G.textMarkSetVisible (rcStart rc) True
     G.textMarkSetVisible (rcEnd rc) True
@@ -301,37 +282,40 @@ cvRgnPosInside pg rc pos = do
     ep <- rgnEndPos pg rc
     return $ if' (sp <= pos && ep >= pos) True False
 
+
 -- Adjust a region position to account for a preceeding subregion
-cvAdjustForSub :: PageContext -> SourcePos -> RegionContext -> IO SourcePos
+-- (returns (delta-y, delta-x), e.g., (0,0) if not adjustment is needed). 
+cvAdjustForSub :: PageContext -> SourcePos -> RegionContext -> IO (Int, Int)
 cvAdjustForSub pg pos rc = do
     let ln = rgnInitLine pg rc
         col = sourceColumn $ rgnInitPos pg rc
-    let fn = sourceName pos
+    -- let fn = sourceName pos
     let rn = rcRegion rc
     if rn == rootRegion
-        then do return pos
+        then do return (0,0)
         else if sourceLine pos > ln
                 then do h <- rgnHeight pg rc
-                        let nln = (sourceLine pos) + h
-                        let np =  newPos fn nln (sourceColumn pos)
-                        --mpStrLn $ "cvAdjustForSub:(" ++ show rn ++ "):" ++ show pos ++ " H:" ++ show h
-                        return np
+                        --let nln = (sourceLine pos) + h
+                        -- let np =  newPos fn nln (sourceColumn pos)
+                        mpStrLn $ "cvAdjustForSub:(" ++ show rn ++ "):" ++ show pos ++ " H:" ++ show h
+                        return (h, 0)
                 else if sourceLine pos == ln && sourceColumn pos > col
                         then do w <- rgnWidth pg rc
                                 h <- rgnHeight pg rc
-                                let ncol = (sourceColumn pos) + w
-                                let np =  newPos fn (h + (sourceLine pos)) ncol
-                                --mpStrLn $ "cvAdjustForSub:(" ++ show rn ++ "):" ++ show pos ++ " H:" ++ show h ++ " W:" ++ show w
-                                return np
-                        else do --mpStrLn $ "cvAdjustForSub:(" ++ show rn ++ ") N/A :" ++ show ln
-                                return pos
+                                -- let ncol = (sourceColumn pos) + w
+                                -- let np =  newPos fn (h + (sourceLine pos)) ncol
+                                mpStrLn $ "cvAdjustForSub:(" ++ show rn ++ "):" ++ show pos ++ " H:" ++ show h ++ " W:" ++ show w
+                                return (h, w)
+                        else do mpStrLn $ "cvAdjustForSub:(" ++ show rn ++ ") N/A :" ++ show ln
+                                return (0,0)
             
 
 -- Adjust a SourcePos for any edits done to editable sub-regions
 cvAllowForPriorSubs :: PageContext -> RegionContext -> SourcePos -> IO SourcePos
 cvAllowForPriorSubs pg rc p = do
-    np <- foldM (\rgn -> cvAdjustForSub pg rgn) p (childRegions pg rc)
-    return np
+    (dy, dx) <- (liftM ((mapSnd sum) . (mapFst sum) . unzip)) $ mapM (cvAdjustForSub pg p) (childRegions pg rc)
+    return $ newPos (sourceName p) (sourceLine p + dy) (sourceColumn p + dx)
+
 
 -- If region does not yet have an Insertion mark, create one and add it. Otherwise, return the existing one
 cvInsertMark :: RCodeView -> PageContext -> RegionContext -> IO G.TextMark
@@ -464,51 +448,6 @@ cvCursorPos pg = do
     offs <- G.textIterGetLineOffset iter
     return $ newPos (pgFileName pg) (ln + 1) (offs + 1)
     
-{--
-rgnSetMarkVis :: PageContext -> RegionContext -> IO ()
-rgnSetMarkVis pg rc = do
-      if (rcEditable rc) 
-          then do --si <- G.textBufferGetIterAtMark (pgBuffer pg) (rcStart rc)
-                  --ssi <- dumpIter si
-                  --putStrLn $ "Insert caret at " ++ ssi
-                  --G.textBufferInsert (pgBuffer pg) si "|"
-                  --si <- G.textBufferGetIterAtMark (pgBuffer pg) (rcStart rc)
-                  --ei <- G.textIterCopy si
-                  --_ <- G.textIterForwardChar si
-                  --ssi <- dumpIter si
-                  --esi <- dumpIter ei
-                  --putStrLn $ "ApplyTag:" ++ ssi ++ " " ++ esi
-                  --G.textBufferApplyTag (pgBuffer pg) (rcVisTag rc) si ei
-                  --si <- G.textBufferGetIterAtMark (pgBuffer pg) (rcEnd rc)
-                  --ssi <- dumpIter si
-                  --putStrLn $ "Insert caret at " ++ ssi
-                  --G.textBufferInsert (pgBuffer pg) si "|"
-                  --ei <- G.textBufferGetIterAtMark (pgBuffer pg) (rcEnd rc)
-                  --si <- G.textIterCopy ei
-                  --_ <- G.textIterBackwardChar si
-                  --ssi <- dumpIter si
-                  --esi <- dumpIter ei
-                  --putStrLn $ "ApplyTag:" ++ ssi ++ " " ++ esi
-                  --G.textBufferApplyTag (pgBuffer pg) (rcVisTag rc) si ei
-                  G.textMarkSetVisible (rcStart rc) True
-                  G.textMarkSetVisible (rcEnd rc) True
-          else    return ()
-
-rgnUnsetMarkVis :: PageContext -> RegionContext -> IO ()
-rgnUnsetMarkVis pg rc = do
-      if (rcEditable rc) 
-          then do si <- G.textBufferGetIterAtMark (pgBuffer pg) (rcStart rc)
-                  ei <- G.textBufferGetIterAtMark (pgBuffer pg) (rcEnd rc)
-                  --G.textBufferRemoveTag (pgBuffer pg) (rcVisTag rc) si ei
-                  --ei <- G.textIterCopy si
-                  --_  <- G.textIterForwardChar ei
-                  --G.textBufferDelete (pgBuffer pg) si ei
-                  --ei <- G.textBufferGetIterAtMark (pgBuffer pg) (rcEnd rc)
-                  --si <- G.textIterCopy ei
-                  --_  <- G.textIterBackwardChar si
-                  --G.textBufferRemoveTag (pgBuffer pg) (rcVisTag rc) si ei
-          else    return ()
---}
 
 dumpIter :: G.TextIter -> IO String
 dumpIter ti = do ln <- G.textIterGetLine ti

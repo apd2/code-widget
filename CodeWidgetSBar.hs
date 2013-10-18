@@ -19,7 +19,18 @@ createSBar = do
     G.set sbe [G.entryEditable G.:= False]
     return sbe
 
-
+csbMarkSet :: RCodeView -> G.TextIter -> G.TextMark -> IO ()
+csbMarkSet ref i m = do
+    mmn <- G.textMarkGetName m
+    case mmn of
+        Nothing -> return ()
+        Just n  -> do if (n == "insert")
+                        then do cv <- readIORef ref
+                                nbi <- cvCurPage cv
+                                csbCursUpdate cv nbi
+                        else return ()
+                            
+  
 csbSwitchPage :: RCodeView -> Int -> IO ()
 csbSwitchPage ref p = do
   cv <- readIORef ref
@@ -31,7 +42,11 @@ csbCursMove ref _ _ _ = do
   nbi <- cvCurPage cv
   csbCursUpdate cv nbi
 
-
+csbFocusMove :: RCodeView -> G.DirectionType -> IO ()
+csbFocusMove ref _ = do
+  cv <- readIORef ref
+  nbi <- cvCurPage cv
+  csbCursUpdate cv nbi
 
 csbCursUpdate :: CodeView -> Int -> IO ()
 csbCursUpdate cv p = do 
