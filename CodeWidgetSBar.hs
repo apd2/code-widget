@@ -1,10 +1,10 @@
 module CodeWidgetSBar where
 
 import qualified Graphics.UI.Gtk            as G
-import qualified Graphics.UI.Gtk.SourceView as G
+--import qualified Graphics.UI.Gtk.SourceView as G
 import Text.Parsec
 import Data.IORef
-import Util
+--import Util
 import CodeWidgetTypes
 import CodeWidgetUtil
 import CodeWidgetInternal

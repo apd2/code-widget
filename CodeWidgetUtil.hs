@@ -8,12 +8,28 @@ import Util
 import CodeWidgetTypes
 
 dbgPrints :: Bool
-dbgPrints = False
---dbgPrints = True
+--dbgPrints = False
+dbgPrints = True
 mpStrLn :: String -> IO ()
 mpStrLn s = do case dbgPrints of
                     True  -> putStrLn s
                     False -> return ()
+
+rgnBgColorTbl :: [String]
+rgnBgColorTbl = "#ffdead" --orange
+              : "#d7f1ee" --g2
+              : "#ffcfca" --melon
+              : "#c5e9bc" --fff9ca" --yl
+              : []
+
+rgnFgColorTbl :: String
+rgnFgColorTbl = "#0000ff"
+
+getRgnBgColor :: RegionID -> String
+getRgnBgColor r = rgnBgColorTbl !! (r `mod` 4)
+
+getRgnFgColor :: RegionID -> String
+getRgnFgColor _ = rgnFgColorTbl
 
 getPage :: CodeView -> PageID -> Maybe PageContext
 getPage cv p =
@@ -44,7 +60,7 @@ getRegion pg r =
     
 -- get a list of all regions except the specified one
 otherRegions :: PageContext -> RegionID -> [RegionContext]
-otherRegions pg r = filter (\x -> r /= (rcRegion x)) $ pgRegions pg
+otherRegions pg r = sort $ filter (\x -> r /= (rcRegion x)) $ pgRegions pg
 
 -- get a list of all pages except the specified one
 otherPages :: CodeView -> PageID -> [PageContext]
@@ -62,6 +78,23 @@ editableRgns pg = filter rcEditable (pgRegions pg)
 subRegions :: PageContext -> RegionContext -> [RegionContext]
 subRegions pg rc = sort $ childRegions pg rc
 
+nonRootRegions :: PageContext -> [RegionContext]
+nonRootRegions pg = otherRegions pg rootRegion
+
+eRgnNestDepth :: PageContext -> RegionID -> Int
+eRgnNestDepth pg par = if (noRegion /= par)
+                          then case getRegion pg par of
+                                    Nothing -> 0
+                                    Just x  -> eRgnNestDepth' pg x 0
+                          else 0
+eRgnNestDepth' pg rc n = if (noRegion /= rcParent rc)
+                            then case getRegion pg (rcParent rc) of
+                                    Nothing -> n
+                                    Just x  -> eRgnNestDepth' pg x newn
+                                               where newn = if' (rcEditable x) (n+1) n
+                            else n
+
+  
 -- is specified region the rootRegion?
 isRoot :: RegionContext -> Bool
 isRoot rc = if' (rcRegion rc == rootRegion) True False
@@ -81,12 +114,24 @@ newRightMark = do mk <- G.textMarkNew Nothing False
 -- Get a TextIter set to the start of the region
 rgnStart ::  PageContext -> RegionContext -> IO G.TextIter
 rgnStart pg rc = do
-    G.textBufferGetIterAtMark (pgBuffer pg) (rcStart rc)
+    iter <- G.textBufferGetIterAtMark (pgBuffer pg) (rcStart rc)
+    {--if (rcEditable rc)
+        then do _ <- G.textIterForwardChar iter
+                return iter
+        else return iter
+     --}
+    return iter
 
 -- Get a TextIter set to the end of the region
 rgnEnd :: PageContext -> RegionContext -> IO G.TextIter
 rgnEnd pg rc = do
-    G.textBufferGetIterAtMark ( pgBuffer pg) (rcEnd rc)
+    iter <- G.textBufferGetIterAtMark ( pgBuffer pg) (rcEnd rc)
+    {--if (rcEditable rc)
+        then do _ <- G.textIterBackwardChar iter
+                return iter
+        else return iter
+    --}
+    return iter
 
 -- convert a TextIter into a SourcePos
 posFromIter :: PageContext -> G.TextIter -> IO SourcePos
@@ -134,9 +179,6 @@ rgnHeight :: PageContext -> RegionContext -> IO Line
 rgnHeight pg rc = do
     spos <- rgnStartPos pg rc
     epos <- rgnEndPos pg rc
-    --hm <- mapM (rgnHeight pg) (childRegions pg rc)
-    --let ch = foldl (+) 0 hm  
-    --return $ (sourceLine epos) - (sourceLine spos) - (rcInitHeight rc) - ch
     return $ (sourceLine epos) - (sourceLine spos) - (rcInitHeight rc)
 
 -- return the width of a region - the difference bewteen the region's position at creating and its current ending position column
@@ -144,9 +186,6 @@ rgnWidth :: PageContext -> RegionContext -> IO Column
 rgnWidth pc rc = do
     spos <- rgnStartPos pc rc
     epos <- rgnEndPos pc rc
-    --wm <- mapM (rgnWidth pc) (childRegions pc rc)
-    --let cw = foldl (+) 0 wm
-    --return $ (sourceColumn epos) - (sourceColumn spos) - (rcInitWidth rc) - cw
     return $ (sourceColumn epos) - (sourceColumn spos) - (rcInitWidth rc)
 
 -- Get a root-normalized TextIter for the given position

@@ -7,7 +7,7 @@ module CodeWidgetTypes (Code(..),
                         CwView,
                         CwIter,
                         CwRef,
-                        CwSBar(..),
+                        CwSBar,
                         RegionID,
                         rootRegion,
                         noRegion,
@@ -26,8 +26,9 @@ import Util
 --------------------------------------------------------------
 -- Constants
 --------------------------------------------------------------
-fontSrc    = "Courier 10 Pitch"
---fontSrc    = "Monospace 9 Pitch"
+fontSrc    = "Courier Regular 9"
+--fontSrc    = "Monospace Regular 9"
+--fontSrc    = "FreeMono Medium 9"
 
 
 --------------------------------------------------------------
@@ -117,14 +118,17 @@ data RegionContext = RegionContext {
       rcStartPos  :: SourcePos,
       rcCallBack  :: Maybe ( IO ()),
       rcInitWidth :: Int,
-      rcInitHeight:: Int
+      rcInitHeight:: Int,
+      rcBgTag     :: G.TextTag
 }
 
 instance Eq RegionContext where
-    (==) (RegionContext _ p1 _ _ _ _ _ sp1 _ _ _) (RegionContext _ p2 _ _ _ _ _ sp2 _ _ _)  =  if' (p1 == p2) (sp1 == sp2)  False
+    (==) (RegionContext _ p1 _ _ _ _ _ sp1  _ _ _ _) (RegionContext _ p2 _ _ _ _ _ sp2  _ _ _ _)  =  
+          if' (p1 == p2) (sp1 == sp2)  False
 
 instance Ord RegionContext where
-    compare (RegionContext _ p1 _ _ _ _ _ sp1 _ _ _) (RegionContext _ p2 _ _ _ _ _ sp2 _ _ _) = if' (p1 == p2) (compare sp1 sp2) (compare p1 p2)
+    compare (RegionContext _ p1 _ _ _ _ _ sp1  _ _ _ _) (RegionContext _ p2 _ _ _ _ _ sp2  _ _ _ _) = 
+          if' (p1 == p2) (compare sp1 sp2) (compare p1 p2)
 
 
 data PageContext =  PageContext {

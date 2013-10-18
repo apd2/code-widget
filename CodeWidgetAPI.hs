@@ -19,7 +19,6 @@ codePageCreate ref f = do
     let lng  = cvLanguage cv
     let font = cvFont cv
     let nb   = cvNotebook cv
-    
     txt <- readFile f
 
     vbox <- G.vBoxNew False 0
@@ -33,19 +32,26 @@ codePageCreate ref f = do
     etag <- G.textTagNew Nothing
     G.set etag [G.textTagEditable G.:= False]
     G.textTagTableAdd table etag
-
+    G.textTagSetPriority etag 0
     G.sourceBufferSetLanguage buf (Just lng)
     G.sourceBufferSetHighlightSyntax buf True
     v <- G.sourceViewNewWithBuffer buf
     
+    G.set v [ G.sourceViewAutoIndent  G.:= True,
+              G.sourceViewIndentWidth G.:= 4,
+              G.sourceViewTabWidth G.:= 4,
+              G.sourceViewInsertSpacesInsteadOfTabs G.:= True
+            ]
+
     G.widgetModifyFont v $ Just font
     G.textViewSetEditable v True
     G.widgetShow v
     G.containerAdd scroll v
 
     pgid <- G.notebookAppendPage nb vbox f
-    root <- mkRootRegion pgid buf 
+    root <- mkRootRegion pgid buf table
 
+    mpStrLn $ "CW# pageCreate: file:" ++ show f ++ " pg:" ++ show pgid
     let newpg = PageContext { pgID         = pgid
                             , pgView       = v
                             , pgBuffer     = buf
@@ -79,17 +85,23 @@ codeRegionCreate :: RCodeView -> Region -> SourcePos -> Bool -> String -> IO () 
 codeRegionCreate ref parent pos ed txt f = do
     cv <- readIORef ref
     case getContexts cv parent of
-          Nothing      -> error ("regionCreate: cannot find notebook page " ++ (show (pid parent)))
-          Just (ctx) -> do r <- cvRgnCreateEmpty ref ctx pos ed f
-                           codeRegionSetText ref r txt
-                           return r
+          Nothing           -> error ("regionCreate: cannot find notebook page " ++ (show (pid parent)))
+          Just (ctx@(pg,x)) -> do 
+                                  r <- cvRgnCreateEmpty ref ctx pos ed f
+                                  codeRegionSetText ref r txt
+                                  mpStrLn $ "CW# regionCreate: pg:" ++ show (pgID pg) ++ " rg:" ++ show (rcRegion x) ++ " pos:" ++ show pos ++ " ed:" ++ show ed ++ " Region:" ++ show (rid r)
+                                  return r
                       
 codeRegionCreateFrom :: RCodeView -> Region -> (SourcePos, SourcePos) -> Bool -> IO () -> IO Region
 codeRegionCreateFrom ref parent (from, to) ed f = do
     cv <- readIORef ref
     case getContexts cv parent of
           Nothing  -> error ("regionCreateFrom: cannot find parent region " ++ (show parent))
-          Just ctx -> cvRgnCreateFrom ref ctx from to ed False f
+          Just (ctx@(pg,x)) -> do 
+                                  r <- cvRgnCreateFrom ref ctx from to ed False f
+                                  mpStrLn $ "CW# regionCreateFrom: pg:" ++ show (pgID pg) ++ " rg:" ++ show (rcRegion x) ++ " fm:" ++ show from ++ " to:" ++ show to ++ " ed:" ++ show ed ++ " Region:" ++ show (rid r)
+                                  codeDumpRegions ref parent
+                                  return r
                       
 codeRegionEditable :: RCodeView -> Region -> Bool -> IO ()
 codeRegionEditable ref r b = do
@@ -97,11 +109,14 @@ codeRegionEditable ref r b = do
     case getContexts cv r of
           Nothing  -> error ("regionEditable: cannot find region " ++ (show r))
           Just (p,x) -> if ([] == childRegions p x) 
-                            then do  let nx = x{rcEditable = b}
+                            then do  --rgnUnsetMarkVis p x
+                                     mpStrLn $ "CW# regionEditable: pg:" ++ show (pgID p) ++ " rg:" ++ show (rcRegion x) ++ " ed:" ++ show b
+                                     let nx = x{rcEditable = b}
                                      let ox = otherRegions p (rcRegion x) 
                                      let np = p {pgRegions = nx:ox}
                                      let op = otherPages cv (pgID p)
                                      writeIORef ref cv {cvPages = np:op}
+                                     --rgnSetMarkVis np nx
                                      cvSetEditFlags np 
                                      return ()
                             else error ("regionEditable: cannot change region with nested subregions")
@@ -115,6 +130,10 @@ codeRegionDelete ref r = do
                   Nothing -> error ("regionDelete: specified region does not exist: " ++ (show r))
                   Just ctx  -> do let pg = fst ctx
                                   let x = snd ctx
+                                  mpStrLn $ "CW# regionDelete: pg:" ++ show (pgID pg) ++ " rg:" ++ show (rcRegion x)
+                                  si <- rgnStart pg x
+                                  ei <- rgnEnd   pg x
+                                  G.textBufferRemoveTag (pgBuffer pg) (rcBgTag x) si ei
                                   let newrgns = otherRegions pg (rcRegion x)
                                   G.textBufferDeleteMark (pgBuffer pg) (rcStart x)
                                   G.textBufferDeleteMark (pgBuffer pg) (rcEnd x)
@@ -123,6 +142,7 @@ codeRegionDelete ref r = do
                                   let ncv = cv {cvPages = npg:ops}
                                   writeIORef ref ncv
                                   cvSetEditFlags npg 
+                                  codeDumpRegions ref r
         else if' ((rid r) == 0) (error "regionDelete: attempt to delete root region!") (error $ "regionDelete: invalid negative region " ++ (show r))
 
 
@@ -139,7 +159,9 @@ codeRegionGetBoundedText ref r (from, to) = do
     cv <- readIORef ref
     case getContexts cv r of 
             Nothing      -> error ("regionGetBoundedText: region not found: " ++ (show r))
-            Just (pg,rc) -> do s <- rgnMapPos pg rc from
+            Just (pg,rc) -> do 
+                               mpStrLn $ "CW# regionGetBoundedText: pg: " ++ show (pgID pg) ++ " rg:" ++ show (rcRegion rc) ++ " Fm:" ++ show from ++ " To:" ++ show to
+                               s <- rgnMapPos pg rc from
                                e <- rgnMapPos pg rc to
                                si <- rootIterFromPos pg s
                                ei <- rootIterFromPos pg e
@@ -152,21 +174,22 @@ codeRegionSetText ref r txt = do
     cv <- readIORef ref
     case getContexts cv r of 
             Nothing      -> error ("regionSetText: region not found: " ++ (show r))
-            Just (pg,rc) -> if (isRoot rc) 
-                              then do G.textBufferSetText (pgBuffer pg) txt
-                                  
-                              else do iter1 <- G.textBufferGetIterAtMark (pgBuffer pg) (rcStart rc)
-                                      iter2 <- G.textBufferGetIterAtMark (pgBuffer pg) (rcEnd rc)
-                                      G.textBufferDelete (pgBuffer pg) iter1 iter2
-                                      G.textBufferInsert (pgBuffer pg) iter1 txt
-                                      cvSetEditFlags pg 
+            Just (pg,rc) -> do mpStrLn $ "CW# regionSetText: pg: " ++ show (pgID pg) ++ " rg:" ++ show (rcRegion rc) ++ " Text:" ++ show txt
+                               if (isRoot rc) 
+                                  then do G.textBufferSetText (pgBuffer pg) txt
+                                  else do iter1 <- rgnStart pg rc
+                                          iter2 <- rgnEnd pg rc
+                                          G.textBufferDelete (pgBuffer pg) iter1 iter2
+                                          G.textBufferInsert (pgBuffer pg) iter1 txt
+                                          cvSetEditFlags pg 
 
 codeRegionInsertText :: RCodeView -> Region -> String -> IO ()
 codeRegionInsertText ref r t = do
     cv <- readIORef ref  
     case getContexts cv r of 
             Nothing      -> error ("regionInsertText: region not found: " ++ (show r))
-            Just (pg,x)  -> do di  <- cvInsertMark ref pg x
+            Just (pg,x)  -> do mpStrLn $ "CW# regionInsertText: pg: " ++ show (pgID pg) ++ " rg:" ++ show (rcRegion x) ++ " Text:" ++ show t
+                               di  <- cvInsertMark ref pg x
                                i3  <- G.textBufferGetIterAtMark (pgBuffer pg) di
                                cvRgnInsertText pg i3 t
                                cvSetEditFlags pg 
@@ -176,7 +199,7 @@ codeRegionDeleteText ref r (from, to) = do
     cv <- readIORef ref  
     case getContexts cv r of 
             Nothing     -> error ("regionDeleteText: region not found: " ++ (show r))
-            Just (pg,x) -> do mpStrLn $ "deleteText: F:" ++ show from ++ " T:" ++ show to
+            Just (pg,x) -> do mpStrLn $ "CW# regiondeleteText: pg: " ++ show (pgID pg) ++ " rg:" ++ show (rcRegion x) ++ " fm:" ++ show from ++ " to:" ++ show to
                               s <- rgnMapPos pg x from
                               e <- rgnMapPos pg x to
                               si <- rootIterFromPos pg s
@@ -188,7 +211,8 @@ codeGetAllText ref r = do
     cv <- readIORef ref
     case getPage cv (pid r) of 
           Nothing -> error "regionGetAllText: bad Region"
-          Just pg -> cvGetAllText pg (rid r)
+          Just pg -> do mpStrLn $ "CW# regionGetAllText: pg:" ++ show (pgID pg)
+                        cvGetAllText pg (rid r)
 
 
 codeTagNew :: RCodeView -> Region -> IO G.TextTag
@@ -197,7 +221,8 @@ codeTagNew ref r = do
     tag <- G.textTagNew Nothing
     case getContexts cv r of 
           Nothing      -> error "tagNew: bad Region"
-          Just (pg,rc) -> do G.textTagTableAdd (pgTagTable pg) tag
+          Just (pg,rc) -> do mpStrLn $ "CW# tagNew: pg:" ++ show (pgID pg) ++ " Rg:" ++ show (rcRegion rc)
+                             G.textTagTableAdd (pgTagTable pg) tag
                              return tag
 
 
@@ -211,6 +236,7 @@ codeRegionApplyTag ref r t (from, to) = do
                                siter <- rootIterFromPos pg rfrom
                                eiter <- rootIterFromPos pg rto
                                -- cvSetMyPage cv pg
+                               mpStrLn $ "CW# regionApplyTag: pg:" ++ show (pgID pg) ++ " Rg:" ++ show (rcRegion x) ++ " Fm:" ++ show rfrom ++ " to:" ++ show rto
                                G.textBufferApplyTag (pgBuffer pg) t siter eiter
 
 
@@ -219,7 +245,8 @@ codeRegionRemoveTag ref r t = do
     cv <- readIORef ref
     case getContexts cv r of 
             Nothing     -> error ("regionRemoveTag: region not found: " ++ (show r))
-            Just (pg,x) -> do iter1 <- rgnStart pg x
+            Just (pg,x) -> do mpStrLn $ "CW# regionRemoveTag: pg:" ++ show (pgID pg) ++ " Rg:" ++ show (rcRegion x) 
+                              iter1 <- rgnStart pg x
                               iter2 <- rgnEnd pg x
                               G.textBufferRemoveTag (pgBuffer pg) t iter1 iter2
 
@@ -252,13 +279,13 @@ codeRegionGetSelection ref r = do
                                     True  -> do (ifm,ito) <- G.textBufferGetSelectionBounds (pgBuffer pg)
                                                 pfm <- posFromIter pg ifm
                                                 pto <- posFromIter pg ito
-                                                mpStrLn $ "getSelection: From:" ++ show pfm ++ " To:" ++ show pto
+                                                mpStrLn $ "CW# regionGetSelection: From:" ++ show pfm ++ " To:" ++ show pto
                                                 mrc <- cvWhoHoldsPos pg pfm
                                                 case mrc of 
                                                       Nothing -> return Nothing
                                                       Just rc -> do sp <- mapPosToRgn pg rc pfm
                                                                     ep <- mapPosToRgn pg rc pto
-                                                                    mpStrLn $ "getSel: R:" ++ show (rcRegion rc) ++ " ST:" ++ show sp ++ " ED:" ++ show ep
+                                                                    mpStrLn $ "CW# getSel: R:" ++ show (rcRegion rc) ++ " ST:" ++ show sp ++ " ED:" ++ show ep
                                                                     let rgn = Region (pgID pg) (rcRegion rc)
                                                                     return $ Just (CwSelection rgn sp ep)
                                             
@@ -269,7 +296,9 @@ codeRegionScrollToPos ref r pos = do
     cv <- readIORef ref
     case getContexts cv r of
             Nothing     -> error ("regionScrollToPos: region not found: " ++ (show r))
-            Just (pg,x) -> do rpos <- rgnMapPos pg x pos
+            Just (pg,x) -> do 
+                              mpStrLn $ "CW# regionScrollToPos: pg:" ++ show (pgID pg) ++ " Rg:" ++ show (rcRegion x) ++ " Pos:" ++ show pos
+                              rpos <- rgnMapPos pg x pos
                               t3   <- rootIterFromPos pg rpos
                               cvSetMyPage cv pg
                               _    <- G.textViewScrollToIter (pgView pg) t3 0.1 Nothing
@@ -279,9 +308,9 @@ codeRegionScrollToPos ref r pos = do
 codeDumpRegions :: RCodeView -> Region -> IO ()
 codeDumpRegions ref r = do
     cv <- readIORef ref
-    case getContexts cv r of
-            Nothing     -> error ("regionScrollToPos: region not found: " ++ (show r))
-            Just (pg,x) -> mapM_ (\a -> do t <- dumpRgn pg a
-                                           putStrLn t) (pgRegions pg)
+    case getPage cv (pid r) of
+            Nothing  -> error ("dumpRegions: page not found: " ++ (show r))
+            Just pg  -> mapM_ (\a -> do t <- dumpRgn pg a
+                                        putStrLn ("CW# dumpRegions: " ++ t)) (pgRegions pg)
 
 
