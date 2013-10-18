@@ -256,6 +256,7 @@ cvRgnPosInside pg rc pos = do
     return $ if' (sp <= pos && ep >= pos) True False
 
 -- Adjust a region position to account for a preceeding subregion
+-- (returns (delta-y, delta-x), e.g., (0,0) if not adjustment is needed). 
 cvAdjustForSub :: PageContext -> SourcePos -> RegionContext -> IO (Int, Int)
 cvAdjustForSub pg pos rc = do
     let ln = rgnInitLine pg rc
