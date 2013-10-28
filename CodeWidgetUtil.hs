@@ -106,6 +106,11 @@ eRgnNestDepth' pg rc n = if (noRegion /= rcParent rc)
                             else n
 
   
+rgnBg :: PageContext -> RegionContext -> IO ()
+rgnBg pg rc = do si <- rgnStart pg rc
+                 ei <- rgnEnd pg rc
+                 G.textBufferApplyTag (pgBuffer pg) (rcBgTag rc) si ei
+
 -- is specified region the rootRegion?
 isRoot :: RegionContext -> Bool
 isRoot rc = if' (rcRegion rc == rootRegion) True False
@@ -126,22 +131,12 @@ newRightMark = do mk <- G.textMarkNew Nothing False
 rgnStart ::  PageContext -> RegionContext -> IO G.TextIter
 rgnStart pg rc = do
     iter <- G.textBufferGetIterAtMark (pgBuffer pg) (rcStart rc)
-    {--if (rcEditable rc)
-        then do _ <- G.textIterForwardChar iter
-                return iter
-        else return iter
-     --}
     return iter
 
 -- Get a TextIter set to the end of the region
 rgnEnd :: PageContext -> RegionContext -> IO G.TextIter
 rgnEnd pg rc = do
     iter <- G.textBufferGetIterAtMark ( pgBuffer pg) (rcEnd rc)
-    {--if (rcEditable rc)
-        then do _ <- G.textIterBackwardChar iter
-                return iter
-        else return iter
-    --}
     return iter
 
 -- convert a TextIter into a SourcePos

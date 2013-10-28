@@ -102,7 +102,7 @@ codeRegionCreateFrom ref parent (from, to) ed f = do
           Just (ctx@(pg,x)) -> do 
                                   r <- cvRgnCreateFrom ref ctx from to ed False f
                                   apiStrLn $ "CW# regionCreateFrom: pg:" ++ show (pgID pg) ++ " rg:" ++ show (rcRegion x) ++ " fm:" ++ show from ++ " to:" ++ show to ++ " ed:" ++ show ed ++ " Region:" ++ show (rid r)
-                                  codeDumpRegions ref parent
+                                  --codeDumpRegions ref parent
                                   return r
                       
 codeRegionEditable :: RCodeView -> Region -> Bool -> IO ()
@@ -311,7 +311,6 @@ codeDumpRegions ref r = do
     cv <- readIORef ref
     case getPage cv (pid r) of
             Nothing  -> error ("dumpRegions: page not found: " ++ (show r))
-            Just pg  -> mapM_ (\a -> do t <- dumpRgn pg a
-                                        putStrLn ("CW# dumpRegions: " ++ t)) (pgRegions pg)
+            Just pg  -> do dumpRgns pg
 
 

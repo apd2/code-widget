@@ -39,11 +39,19 @@ bufSigDeleteRange ref ifm ito = do cv <- readIORef ref
                                         Just (pg,rc) -> do rgnChangeCB cv pg ifm
 
 bufSigInsertText :: RCodeView -> G.TextIter -> String -> IO ()
-bufSigInsertText ref iter txt = do cv <- readIORef ref
-                                   nbi <- cvCurPage cv
-                                   case getContexts cv (Region nbi rootRegion) of
-                                        Nothing      -> return ()
-                                        Just (pg,rc) -> do rgnChangeCB cv pg iter
+bufSigInsertText ref iter txt = do 
+   cv <- readIORef ref
+   nbi <- cvCurPage cv
+   case getContexts cv (Region nbi rootRegion) of
+        Nothing      -> return ()
+        Just (pg,rc) -> do rgnChangeCB cv pg iter
+                           --make sure background tagging grows with region
+                           mrgn <- cvWhoHoldsIter pg iter 
+                           itxt <- dumpIter iter
+                           case mrgn of
+                                Nothing -> return ()
+                                Just x  -> do rgnBg pg x
+                                                        
 
 
 viewSigPasteClibB :: RCodeView -> IO ()
@@ -280,7 +288,7 @@ cvRgnPosInside :: PageContext -> RegionContext -> SourcePos -> IO Bool
 cvRgnPosInside pg rc pos = do
     sp <- rgnStartPos pg rc
     ep <- rgnEndPos pg rc
-    return $ if' (sp <= pos && ep >= pos) True False
+    return $ if' ((sp <= pos) && (pos <= ep)) True False
 
 
 -- Adjust a region position to account for a preceeding subregion
@@ -429,8 +437,15 @@ cvSubRgnText pg rc = do
                               return $ s1 ++ s2 ++ s3
 
 -- loop through all regions to find the one that pos belongs to
+cvWhoHoldsIter :: PageContext -> G.TextIter -> IO (Maybe RegionContext)
+cvWhoHoldsIter pg iter = do ln <- G.textIterGetLine iter
+                            co <- G.textIterGetLineOffset iter
+                            let fn = pgFileName pg
+                            cvWhoHoldsPos' pg (newPos fn (ln + 1) (co + 1)) (editableRgns pg)
+                             
 cvWhoHoldsPos :: PageContext -> SourcePos -> IO (Maybe RegionContext)
 cvWhoHoldsPos pg pos = do cvWhoHoldsPos' pg pos (editableRgns pg)
+
 cvWhoHoldsPos' :: PageContext -> SourcePos -> [RegionContext] -> IO (Maybe RegionContext)
 cvWhoHoldsPos' _ _ []  = do return Nothing
 cvWhoHoldsPos' pg pos (x:xs) = do
@@ -451,8 +466,12 @@ cvCursorPos pg = do
 dumpIter :: G.TextIter -> IO String
 dumpIter ti = do ln <- G.textIterGetLine ti
                  co <- G.textIterGetLineOffset ti
-                 return $ "[LN: " ++ show (ln + 1) ++ " CO:" ++ show (co + 1) ++ "]"
+                 return $ "[LN:" ++ show (ln + 1) ++ " CO:" ++ show (co + 1) ++ "]"
 
+dumpRgns :: PageContext -> IO ()
+dumpRgns pg = do mapM_ (\a -> do t <- dumpRgn pg a
+                                 putStrLn ("CW# dumpRegions: " ++ t)) (pgRegions pg)
+  
 
 -- debugging: display current state of a region
 dumpRgn :: PageContext -> RegionContext -> IO String
