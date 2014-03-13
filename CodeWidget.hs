@@ -72,25 +72,26 @@ codeWidgetNew l w h = do
 
     _ <- G.after nb G.switchPage (csbSwitchPage ref)
 
-    return $ Code { codeApi = CwAPI { pageCreate            = codePageCreate       ref
-                                    , regionCreate          = codeRegionCreate     ref
-                                    , regionCreateFrom      = codeRegionCreateFrom ref
-                                    , regionDelete          = codeRegionDelete     ref
-                                    , regionGetText         = codeRegionGetText    ref
+    return $ Code { codeApi = CwAPI { pageCreate            = codePageCreate        ref
+                                    , regionUnderCursor     = codeRegionUnderCursor ref
+                                    , regionCreate          = codeRegionCreate      ref
+                                    , regionCreateFrom      = codeRegionCreateFrom  ref
+                                    , regionDelete          = codeRegionDelete      ref
+                                    , regionGetText         = codeRegionGetText     ref
                                     , regionGetBoundedText  = codeRegionGetBoundedText   ref
-                                    , regionSetText         = codeRegionSetText    ref
-                                    , regionDeleteText      = codeRegionDeleteText ref
-                                    , regionInsertText      = codeRegionInsertText ref
-                                    , regionGetAllText      = codeGetAllText       ref
-                                    , tagNew                = codeTagNew           ref
-                                    , regionApplyTag        = codeRegionApplyTag   ref
-                                    , regionRemoveTag       = codeRegionRemoveTag  ref
-                                    , regionSetMark         = codeRegionSetMark    ref
-                                    , regionGetIter         = codeRegionGetIter    ref
+                                    , regionSetText         = codeRegionSetText     ref
+                                    , regionDeleteText      = codeRegionDeleteText  ref
+                                    , regionInsertText      = codeRegionInsertText  ref
+                                    , regionGetAllText      = codeGetAllText        ref
+                                    , tagNew                = codeTagNew            ref
+                                    , regionApplyTag        = codeRegionApplyTag    ref
+                                    , regionRemoveTag       = codeRegionRemoveTag   ref
+                                    , regionSetMark         = codeRegionSetMark     ref
+                                    , regionGetIter         = codeRegionGetIter     ref
                                     , regionGetSelection    = codeRegionGetSelection ref
                                     , regionScrollToPos     = codeRegionScrollToPos ref
-                                    , regionEditable        = codeRegionEditable   ref
-                                    , dumpRegions           = codeDumpRegions      ref
+                                    , regionEditable        = codeRegionEditable    ref
+                                    , dumpRegions           = codeDumpRegions       ref
                                     }
                   , codeWidget = G.toWidget nb
                   , codePos    = G.toWidget sbar

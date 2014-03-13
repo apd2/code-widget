@@ -26,7 +26,7 @@ import Util
 --------------------------------------------------------------
 -- Constants
 --------------------------------------------------------------
-fontSrc    = "Courier Regular 9"
+fontSrc    = "Courier Regular 12"
 --fontSrc    = "Monospace Regular 9"
 --fontSrc    = "FreeMono Medium 9"
 
@@ -45,7 +45,7 @@ type PageID   = Int
 
 data Region = Region { pid :: PageID
                      , rid :: RegionID
-                     } deriving (Show, Eq) 
+                     } deriving (Show, Eq, Ord) 
 
 -- Root region is created automatically with the widget and cannot be destroyed
 rootRegion :: RegionID
@@ -64,6 +64,8 @@ data CwSelection = CwSelection { selRegion :: Region
 data CwAPI = CwAPI {
     pageCreate            :: String                   -- file name
                           -> IO Region,
+
+    regionUnderCursor     :: IO (Maybe (Region,SourcePos)), -- get region currently under cursor and cursor offset inside the region
 
     regionCreate          :: Region                   -- non-editable parent region
                           -> SourcePos                -- location inside parent region

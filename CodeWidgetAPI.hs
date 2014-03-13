@@ -1,8 +1,13 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module CodeWidgetAPI where
 
+import Data.Maybe
+import Data.List
 import qualified Graphics.UI.Gtk            as G
 import qualified Graphics.UI.Gtk.SourceView as G
 import Text.Parsec
+import Text.Parsec.Pos
 import Data.IORef
 import Util
 import CodeWidgetTypes
@@ -82,6 +87,17 @@ codePageCreate ref f = do
 
     return $ Region pgid rootRegion
 
+codeRegionUnderCursor :: RCodeView -> IO (Maybe (Region, SourcePos))
+codeRegionUnderCursor ref = do
+    CodeView{..} <- readIORef ref
+    pageid <- G.notebookGetCurrentPage cvNotebook
+    let pc = fromJust $ find ((== pageid) . pgID) cvPages
+    curpos <- cvCursorPos pc
+    mrc <- cvWhoHoldsPos pc curpos
+    return $ fmap (\rc -> let lin = sourceLine curpos - sourceLine (rcStartPos rc)
+                              col = if' (lin == 0) (sourceColumn curpos - sourceColumn (rcStartPos rc)) (sourceColumn curpos)
+                          in (Region pageid (rcRegion rc), newPos (sourceName curpos) lin col)) 
+                  mrc
 
 codeRegionCreate :: RCodeView -> Region -> SourcePos -> Bool -> String -> IO () -> IO Region
 codeRegionCreate ref parent pos ed txt f = do
