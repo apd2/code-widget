@@ -95,8 +95,8 @@ codeRegionUnderCursor ref = do
     curpos <- cvCursorPos pc
     mrc <- cvWhoHoldsPos pc curpos
     return $ fmap (\rc -> let lin = sourceLine curpos - sourceLine (rcStartPos rc)
-                              col = if' (lin == 0) (sourceColumn curpos - sourceColumn (rcStartPos rc)) (sourceColumn curpos)
-                          in (Region pageid (rcRegion rc), newPos (sourceName curpos) lin col)) 
+                              col = if' (lin == 0) (sourceColumn curpos - sourceColumn (rcStartPos rc) + 1) (sourceColumn curpos)
+                          in (Region pageid (rcRegion rc), newPos (sourceName curpos) (lin + 1) col)) 
                   mrc
 
 codeRegionCreate :: RCodeView -> Region -> SourcePos -> Bool -> String -> IO () -> IO Region
