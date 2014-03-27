@@ -94,10 +94,12 @@ codeRegionUnderCursor ref = do
     let pc = fromJust $ find ((== pageid) . pgID) cvPages
     curpos <- cvCursorPos pc
     mrc <- cvWhoHoldsPos pc curpos
-    return $ fmap (\rc -> let lin = sourceLine curpos - sourceLine (rcStartPos rc)
-                              col = if' (lin == 0) (sourceColumn curpos - sourceColumn (rcStartPos rc) + 1) (sourceColumn curpos)
-                          in (Region pageid (rcRegion rc), newPos (sourceName curpos) (lin + 1) col)) 
-                  mrc
+    maybe (return Nothing)
+          (\rc -> do sp <- rgnStartPos pc rc
+                     let lin = sourceLine curpos - sourceLine sp
+                         col = if' (lin == 0) (sourceColumn curpos - sourceColumn sp + 1) (sourceColumn curpos)
+                     return $ Just (Region pageid (rcRegion rc), newPos (sourceName curpos) (lin + 1) col)) 
+          mrc
 
 codeRegionCreate :: RCodeView -> Region -> SourcePos -> Bool -> String -> IO () -> IO Region
 codeRegionCreate ref parent pos ed txt f = do
