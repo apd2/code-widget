@@ -1,4 +1,4 @@
-module CodeWidget (codeWidgetNew,
+module CodeWidget.CodeWidget (codeWidgetNew,
                    Code(..), 
                    CwAPI(..),
                    CwSelection(..),
@@ -12,9 +12,9 @@ module CodeWidget (codeWidgetNew,
 import qualified Graphics.UI.Gtk            as G
 import qualified Graphics.UI.Gtk.SourceView as G
 import Data.IORef
-import CodeWidgetTypes
-import CodeWidgetAPI
-import CodeWidgetSBar
+import CodeWidget.CodeWidgetTypes
+import CodeWidget.CodeWidgetAPI
+import CodeWidget.CodeWidgetSBar
 
 {--
 design considerations:

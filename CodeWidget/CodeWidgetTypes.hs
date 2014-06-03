@@ -1,4 +1,4 @@
-module CodeWidgetTypes (Code(..),
+module CodeWidget.CodeWidgetTypes (Code(..),
                         CwAPI(..),
                         CwSelection(..),
                         Region(..),

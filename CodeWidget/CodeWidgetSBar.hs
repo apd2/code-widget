@@ -1,13 +1,13 @@
-module CodeWidgetSBar where
+module CodeWidget.CodeWidgetSBar where
 
 import qualified Graphics.UI.Gtk            as G
 --import qualified Graphics.UI.Gtk.SourceView as G
 import Text.Parsec
 import Data.IORef
 --import Util
-import CodeWidgetTypes
-import CodeWidgetUtil
-import CodeWidgetInternal
+import CodeWidget.CodeWidgetTypes
+import CodeWidget.CodeWidgetUtil
+import CodeWidget.CodeWidgetInternal
 
 
 createSBar :: IO CwSBar

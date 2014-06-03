@@ -1,4 +1,4 @@
-module CodeWidgetInternal where
+module CodeWidget.CodeWidgetInternal where
 
 import qualified Graphics.UI.Gtk            as G
 import qualified Graphics.UI.Gtk.SourceView as G
@@ -9,8 +9,8 @@ import Data.IORef
 import Control.Monad
 import Control.Monad.IO.Class
 import Util
-import CodeWidgetTypes
-import CodeWidgetUtil
+import CodeWidget.CodeWidgetTypes
+import CodeWidget.CodeWidgetUtil
 
 cvCurPage :: CodeView -> IO PageID
 cvCurPage cv = do G.notebookGetCurrentPage $ cvNotebook cv

@@ -1,6 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module CodeWidgetAPI where
+module CodeWidget.CodeWidgetAPI where
 
 import Data.Maybe
 import Data.List
@@ -10,10 +10,10 @@ import Text.Parsec
 import Text.Parsec.Pos
 import Data.IORef
 import Util
-import CodeWidgetTypes
-import CodeWidgetUtil
-import CodeWidgetInternal
-import CodeWidgetSBar
+import CodeWidget.CodeWidgetTypes
+import CodeWidget.CodeWidgetUtil
+import CodeWidget.CodeWidgetInternal
+import CodeWidget.CodeWidgetSBar
 
 
 -- Individual API functions

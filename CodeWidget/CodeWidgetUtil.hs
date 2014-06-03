@@ -1,11 +1,11 @@
-module CodeWidgetUtil where
+module CodeWidget.CodeWidgetUtil where
 
 import qualified Graphics.UI.Gtk            as G
 import Text.Parsec
 import Text.Parsec.Pos
 import Data.List
 import Util
-import CodeWidgetTypes
+import CodeWidget.CodeWidgetTypes
 
 
 maybePrtStrLn :: Bool -> String -> IO ()
