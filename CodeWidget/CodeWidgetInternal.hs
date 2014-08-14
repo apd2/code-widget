@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module CodeWidget.CodeWidgetInternal where
 
 import qualified Graphics.UI.Gtk            as G
